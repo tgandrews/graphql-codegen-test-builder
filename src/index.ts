@@ -1,9 +1,13 @@
-import { CodegenPlugin } from "@graphql-codegen/plugin-helpers";
+import { PluginFunction, Types } from "@graphql-codegen/plugin-helpers";
 
-const structure: CodegenPlugin = {
-  plugin: async (schema, documents, config, info) => {
-    return '';
+type Config = {
+  option: string;
+}
+
+const graphqlCodegenBuilderPlugin: PluginFunction<Partial<Config>, Types.ComplexPluginOutput> = (schema, documents, config) => {
+  return {
+    content: ''
   }
 }
 
-export default structure;
+export default graphqlCodegenBuilderPlugin;
