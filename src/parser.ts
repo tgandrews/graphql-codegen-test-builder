@@ -1,6 +1,6 @@
 import { Types } from "@graphql-codegen/plugin-helpers";
 import { GraphQLObjectType, GraphQLOutputType, GraphQLScalarType, GraphQLSchema, isNonNullType, isObjectType, isScalarType, Kind, OperationDefinitionNode, OperationTypeNode, SelectionNode } from "graphql";
-enum GQLKind {
+export enum GQLKind {
   String = 'string',
   Boolean = 'boolean',
   Int = 'int',
@@ -9,35 +9,37 @@ enum GQLKind {
   Enum = 'enum',
   Object = 'object'
 }
-type SimpleGQLType = { kind: GQLKind.Boolean | GQLKind.Float | GQLKind.Int | GQLKind.String }
-type UnionGQLType = { kind: GQLKind.Union, name: string }
-type EnumGQLType = { kind: GQLKind.Enum, name: string }
-type ObjectGQLType = { kind: GQLKind.Object, name: string }
-type GQLType = SimpleGQLType | UnionGQLType | EnumGQLType | ObjectGQLType
-type FieldValue = { nullable: boolean; gqlType: GQLType; name: string; }
+export type SimpleGQLType = { kind: GQLKind.Boolean | GQLKind.Float | GQLKind.Int | GQLKind.String }
+export type UnionGQLType = { kind: GQLKind.Union, name: string, id: string }
+export type EnumGQLType = { kind: GQLKind.Enum, name: string, id: string }
+export type ObjectGQLType = { kind: GQLKind.Object, name: string, id: string }
+export type GQLType = SimpleGQLType | UnionGQLType | EnumGQLType | ObjectGQLType
+export type FieldValue = { nullable: boolean; gqlType: GQLType; name: string; }
 
-type ClassObject = {
+export type ClassObject = {
+  id: string;
   name: string;
   inputs: FieldValue[];
   outputs: FieldValue[];
   isInput: boolean;
   operation?: 'Query' | 'Mutation';
 }
-type UnionObject = {
+export type UnionObject = {
   name: string;
   subTypes: string[];
 }
 
-class ParseResult {
+export class ParseResult {
   classes: Map<string, ClassObject> = new Map()
   unions: Map<string, UnionObject> = new Map()
 
-  addClass(klass: ClassObject): this {
-    const existingKlass = this.classes.get(klass.name)
+  addClass(klass: Omit<ClassObject, 'id'>): this {
+    const klassId = `${klass.name}:${klass.isInput ? 'input' : 'output'}`
+    const existingKlass = this.classes.get(klassId)
     if (existingKlass && existingKlass.isInput === klass.isInput && existingKlass.operation === klass.operation) {
       throw new Error(`Duplicate classes with the same name (${klass.name}) and type (${klass.isInput ? 'input' : 'output'})`)
     }
-    this.classes.set(klass.name, klass)
+    this.classes.set(klassId, { ...klass, id: klassId })
     return this
   }
 
@@ -100,6 +102,7 @@ const parseSelection = (node: SelectionNode, schemaType: GraphQLObjectType): { f
     const fieldValue: FieldValue = {
       name: fieldName,
       gqlType: {
+        id: `${typeName}:output`,
         name: typeName,
         kind: GQLKind.Object,
       },
@@ -132,13 +135,12 @@ const parseSelectionSet = (name: string, selections: readonly SelectionNode[], s
     }
   }, { outputs: [], result: new ParseResult() })
 
-  const klass: ClassObject = {
+  result.addClass({
     name,
     inputs: [],
     outputs,
-    isInput: true
-  }
-  result.addClass(klass)
+    isInput: false
+  })
   return result
 }
 
@@ -162,14 +164,13 @@ const parseOperation = (operation: OperationDefinitionNode, schema: GraphQLSchem
     }
   }, { outputs: [], result: new ParseResult() })
 
-  const klass: ClassObject = {
+  result.addClass({
     name,
     inputs: [],
     outputs,
     isInput: true,
     operation: operation.operation === OperationTypeNode.QUERY ? "Query" : "Mutation"
-  }
-  result.addClass(klass)
+  })
   return result
 
 }

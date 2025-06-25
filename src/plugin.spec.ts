@@ -41,7 +41,7 @@ describe('plugin', () => {
       }
     `
     const result = await runPlugin(query, schema)
-    expect(result).toContain(prettify(
+    expect(result).toEqual(prettify(
       `class MockGetUserQueryBuilder {
         private me: { name: string } = { name: '' };
 
@@ -50,10 +50,10 @@ describe('plugin', () => {
           return this;
         }
 
-        build(): MockedResponse<UserQueryResponse, UserQueryVariables> {
+        build(): MockedResponse<GetUserQueryResponse, GetUserQueryVariables> {
           return {
             request: {
-              query: UserQueryDocument,
+              query: GetUserQueryDocument,
             },
             result: {
               data: {
