@@ -9,12 +9,12 @@ export enum GQLKind {
   Enum = 'enum',
   Object = 'object'
 }
-export type SimpleGQLType = { kind: GQLKind.Boolean | GQLKind.Float | GQLKind.Int | GQLKind.String }
-export type UnionGQLType = { kind: GQLKind.Union, name: string, id: string }
-export type EnumGQLType = { kind: GQLKind.Enum, name: string, id: string }
-export type ObjectGQLType = { kind: GQLKind.Object, name: string, id: string }
+export type SimpleGQLType = { kind: GQLKind.Boolean | GQLKind.Float | GQLKind.Int | GQLKind.String, nullable: boolean }
+export type UnionGQLType = { kind: GQLKind.Union, name: string, id: string, nullable: boolean }
+export type EnumGQLType = { kind: GQLKind.Enum, name: string, id: string, nullable: boolean }
+export type ObjectGQLType = { kind: GQLKind.Object, name: string, id: string, nullable: boolean }
 export type GQLType = SimpleGQLType | UnionGQLType | EnumGQLType | ObjectGQLType
-export type FieldValue = { nullable: boolean; gqlType: GQLType; name: string; }
+export type FieldValue = { type: GQLType; name: string; }
 
 export type ClassObject = {
   id: string;
@@ -23,6 +23,8 @@ export type ClassObject = {
   outputs: FieldValue[];
   isInput: boolean;
   operation?: 'Query' | 'Mutation';
+  // TODO: This is a rendering property so shouldn't really live here
+  shouldInline?: boolean;
 }
 export type UnionObject = {
   name: string;
@@ -62,18 +64,18 @@ export class ParseResult {
   }
 }
 
-const parseScalarType = (fieldType: GraphQLScalarType): SimpleGQLType => {
+const parseScalarType = (fieldType: GraphQLScalarType, nullable: boolean): SimpleGQLType => {
   switch (fieldType.name) {
     case 'String':
-      return { kind: GQLKind.String }
+      return { kind: GQLKind.String, nullable }
     default:
       throw new Error(`Unknown scalar type: ${fieldType.name}`)
   } 
 }
 
-const parseType = (fieldType: GraphQLOutputType): GQLType => {
+const parseType = (fieldType: GraphQLOutputType, nullable: boolean): GQLType => {
   if (isScalarType(fieldType)) {
-    return parseScalarType(fieldType)
+    return parseScalarType(fieldType, nullable)
   }
   throw new Error(`Unable to parse type: ${fieldType.toString()}`)
 }
@@ -101,12 +103,12 @@ const parseSelection = (node: SelectionNode, schemaType: GraphQLObjectType): { f
     const typeName = fieldType.name
     const fieldValue: FieldValue = {
       name: fieldName,
-      gqlType: {
+      type: {
         id: `${typeName}:output`,
         name: typeName,
         kind: GQLKind.Object,
+        nullable,
       },
-      nullable
     }
     const result = parseSelectionSet(typeName, node.selectionSet.selections, fieldType)
     return {
@@ -117,8 +119,7 @@ const parseSelection = (node: SelectionNode, schemaType: GraphQLObjectType): { f
 
   const value: FieldValue = {
     name: fieldName,
-    gqlType: parseType(fieldType),
-    nullable,
+    type: parseType(fieldType, nullable),
   }
   return {
     fieldValue: value,

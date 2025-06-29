@@ -42,10 +42,16 @@ describe('plugin', () => {
     `
     const result = await runPlugin(query, schema)
     expect(result).toEqual(prettify(
-      `class MockGetUserQueryBuilder {
-        private me: { name: string } = { name: '' };
+      `type MockUserType = {
+        name: string;
+      }
+        
+      class MockGetUserQueryBuilder {
+        private me: MockUserType = { 
+          name: '', 
+        };
 
-        havingMe(me: { name: string }): this {
+        havingMe(me: MockUserType): this {
           this.me = me;
           return this;
         }
