@@ -4,23 +4,24 @@ import prettier from 'prettier';
 
 const buildDocuments = (query: string) => {
   const ast = parse(query);
-  return [{
-    document: ast,
-    location: 'test.graphql'
-  }]
-}
+  return [
+    {
+      document: ast,
+      location: 'test.graphql',
+    },
+  ];
+};
 
 const prettify = (tsString: string) => {
   return prettier.format(tsString, { parser: 'typescript' });
-}
+};
 
 const runPlugin = async (query: string, schemaString: string) => {
   const schema = buildSchema(schemaString);
   const documents = buildDocuments(query);
-  const result = await graphqlBuilderPlugin(schema, documents, {})
-  return prettify(result.content)
-}
-
+  const result = await graphqlBuilderPlugin(schema, documents, {});
+  return prettify(result.content);
+};
 
 describe('plugin', () => {
   it('should generate a builder class for a query', async () => {
@@ -32,17 +33,18 @@ describe('plugin', () => {
       type User {
         name: String!
       }
-    `
+    `;
     const query = `
       query GetUser {
         me {
           name
         }
       }
-    `
-    const result = await runPlugin(query, schema)
-    expect(result).toEqual(prettify(
-      `type MockUserType = {
+    `;
+    const result = await runPlugin(query, schema);
+    expect(result).toEqual(
+      prettify(
+        `type MockUserType = {
         name: string;
       }
 
@@ -73,7 +75,8 @@ describe('plugin', () => {
           } as const
         }
       }`
-    ))
+      )
+    );
   });
 
   it('should generate a builder class for a mutation', async () => {
@@ -91,17 +94,18 @@ describe('plugin', () => {
         name: String!
         age: Int
       }
-    `
+    `;
     const query = `
       mutation CreateUser($input: CreateUserInput!) {
         createUser(input: $input) {
           name
         }
       }
-    `
-    const result = await runPlugin(query, schema)
-    expect(result).toEqual(prettify(
-      `type MockUserType = {
+    `;
+    const result = await runPlugin(query, schema);
+    expect(result).toEqual(
+      prettify(
+        `type MockUserType = {
         name: string;
         age: number | null;
       }
@@ -152,7 +156,8 @@ describe('plugin', () => {
           } as const
         }
       }`
-    ))
+      )
+    );
   });
 
   it('should inline small classes (<=3 properties)', async () => {
@@ -166,7 +171,7 @@ describe('plugin', () => {
         age: Int
         email: String
       }
-    `
+    `;
     const query = `
       query GetUser {
         me {
@@ -175,10 +180,11 @@ describe('plugin', () => {
           email
         }
       }
-    `
-    const result = await runPlugin(query, schema)
-    expect(result).toEqual(prettify(
-      `
+    `;
+    const result = await runPlugin(query, schema);
+    expect(result).toEqual(
+      prettify(
+        `
       type MockUserType = {
         name: string;
         age: number | null;
@@ -216,6 +222,7 @@ describe('plugin', () => {
           } as const
         }
       }`
-    ))
+      )
+    );
   });
 });
