@@ -1,25 +1,25 @@
-import { ParseResult } from "./parser";
+import { ParseResult } from './parser';
 
-type OptimisingFn = (parseResult: ParseResult) => ParseResult
+type OptimisingFn = (parseResult: ParseResult) => ParseResult;
 
-const MIN_FIELD_COUNT = 3
+const MIN_FIELD_COUNT = 3;
 const inlineSmallClasses: OptimisingFn = (parseResult) => {
   parseResult.classes.forEach((klass) => {
     // If it's an operation don't touch it
     if (klass.operation) {
-      return
+      return;
     }
     if (klass.inputs.length < MIN_FIELD_COUNT) {
-      klass.shouldInline = true
+      klass.shouldInline = true;
     }
-  })
-  return parseResult
-}
+  });
+  return parseResult;
+};
 
-const rules: Array<OptimisingFn> = [inlineSmallClasses]
+const rules: Array<OptimisingFn> = [inlineSmallClasses];
 
 const optimiser = (parseResult: ParseResult): ParseResult => {
-  return rules.reduce((result, fn) => fn(result), parseResult)
-}
+  return rules.reduce((result, fn) => fn(result), parseResult);
+};
 
-export default optimiser
+export default optimiser;

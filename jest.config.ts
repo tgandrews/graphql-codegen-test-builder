@@ -1,10 +1,10 @@
-import { createDefaultPreset } from "ts-jest";
-import { Config } from "jest";
+import { createDefaultPreset } from 'ts-jest';
+import { Config } from 'jest';
 
 const tsJestTransformCfg = createDefaultPreset().transform;
 
 const config: Config = {
-  testEnvironment: "node",
+  testEnvironment: 'node',
   transform: {
     ...tsJestTransformCfg,
   },
