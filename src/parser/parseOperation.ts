@@ -141,7 +141,7 @@ function parseSelection(
         kind: GQLKind.Object,
         nullable,
       },
-      selectedFields: klass?.selectedOutputs?.map((f) => f.name) ?? [],
+      selectedFields: (klass?.selectedOutputs ?? klass?.outputs)?.map((f) => f.name) ?? [],
     };
     return {
       fieldValue,
