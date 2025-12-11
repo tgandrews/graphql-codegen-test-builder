@@ -78,8 +78,8 @@ export const TYPE_DEFS: TypeDefMap = {
         const fieldsToRender = klass.isInput
           ? klass.inputs
           : klass.hasMultipleQueries && klass.selectedOutputs
-            ? klass.selectedOutputs
-            : klass.outputs;
+          ? klass.selectedOutputs
+          : klass.outputs;
         if (!renderDefaultValueFn) {
           throw new Error('renderDefaultValueFn is required for Object type');
         }

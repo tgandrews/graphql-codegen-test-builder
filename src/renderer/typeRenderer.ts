@@ -1,7 +1,11 @@
 import { ClassObject, FieldValue, GQLKind, ParseResult } from '../parser';
 import { TYPE_DEFS } from './typeDefs';
 
-export function getPickTypeName(queryName: string, fieldName: string, fieldTypeName: string): string {
+export function getPickTypeName(
+  queryName: string,
+  fieldName: string,
+  fieldTypeName: string
+): string {
   return `${queryName}${fieldTypeName}Type`;
 }
 
@@ -65,9 +69,7 @@ export function renderDefaultValue(
         !baseTypeFields.every((f, i) => f === querySelectedFields[i]);
 
       if (needsCustomRender) {
-        const fieldsToRender = klass.outputs.filter((f) =>
-          field.selectedFields?.includes(f.name)
-        );
+        const fieldsToRender = klass.outputs.filter((f) => field.selectedFields?.includes(f.name));
         return `{
           ${fieldsToRender
             .map((output) => `${output.name}: ${renderDefaultValue(output, parseResult)}`)

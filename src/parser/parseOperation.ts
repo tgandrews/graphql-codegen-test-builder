@@ -195,9 +195,10 @@ function isNamedTypeNode(typeNode: NamedTypeNode | ListTypeNode): typeNode is Na
   return typeNode.kind === Kind.NAMED_TYPE;
 }
 
-function parseInputValueField(
-  field: InputValueDefinitionNode
-): { field: FieldValue; result: ParseResult } {
+function parseInputValueField(field: InputValueDefinitionNode): {
+  field: FieldValue;
+  result: ParseResult;
+} {
   let fieldType = field.type;
   let nullable = true;
   if (field.type.kind === Kind.NON_NULL_TYPE) {
