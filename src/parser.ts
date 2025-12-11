@@ -49,18 +49,24 @@ export type ObjectGQLType = {
   nullable: boolean;
 };
 export type GQLType = SimpleGQLType | UnionGQLType | EnumGQLType | ObjectGQLType;
-export type FieldValue = { type: GQLType; name: string };
+export type FieldValue = {
+  type: GQLType;
+  name: string;
+  selectedFields?: string[]; // For object types, the field names that were selected
+};
 
 export type ClassObject = {
   id: string;
   name: string;
   inputs: FieldValue[];
   outputs: FieldValue[];
-  selectedOutputs?: FieldValue[]; // Fields that were actually selected in the query
+  selectedOutputs?: FieldValue[]; // Fields actually selected across queries (only set when multiple queries)
   isInput: boolean;
   operation?: 'Query' | 'Mutation';
   // TODO: This is a rendering property so shouldn't really live here
   shouldInline?: boolean;
+  isCompleteSchema?: boolean; // True if this represents all fields from the schema
+  hasMultipleQueries?: boolean; // True if multiple queries selected different fields
 };
 export type UnionObject = {
   name: string;
@@ -84,13 +90,64 @@ export class ParseResult {
           klass.outputs.length > existingKlass.outputs.length
             ? klass.outputs
             : existingKlass.outputs;
-        // Preserve selectedOutputs from the original (selected fields), not the complete schema
-        const selectedOutputs = existingKlass.selectedOutputs || klass.selectedOutputs;
+
+        // When merging non-operation classes (types used by queries)
+        let selectedOutputs = existingKlass.selectedOutputs;
+        let isCompleteSchema = existingKlass.isCompleteSchema || klass.isCompleteSchema;
+        let hasMultipleQueries = existingKlass.hasMultipleQueries || false;
+
+        if (!existingKlass.operation && !klass.operation) {
+          // Case 1: Merging two partial selections (multiple queries)
+          if (!existingKlass.isCompleteSchema && !klass.isCompleteSchema) {
+            selectedOutputs = this.mergeSelectedOutputs(
+              existingKlass.selectedOutputs || existingKlass.outputs,
+              klass.selectedOutputs || klass.outputs
+            );
+            isCompleteSchema = false;
+            hasMultipleQueries = true;
+          }
+          // Case 2: Merging partial with complete (second+ query)
+          else if (existingKlass.isCompleteSchema && !klass.isCompleteSchema) {
+            // Second+ query merging with complete
+            // Merge with what the first query selected (stored in selectedOutputs)
+            selectedOutputs = this.mergeSelectedOutputs(
+              existingKlass.selectedOutputs,
+              klass.outputs
+            );
+            hasMultipleQueries = true;
+          }
+          // Case 3: Merging complete with partial (first query + schema)
+          else if (!existingKlass.isCompleteSchema && klass.isCompleteSchema) {
+            // First query merging with complete - store what was selected
+            selectedOutputs = existingKlass.outputs;
+            hasMultipleQueries = false;
+          }
+          // Case 4: Merging two complete classes (from different queries)
+          else if (existingKlass.isCompleteSchema && klass.isCompleteSchema) {
+            // Both are complete - check if they have different selections
+            if (existingKlass.selectedOutputs && klass.selectedOutputs) {
+              selectedOutputs = this.mergeSelectedOutputs(
+                existingKlass.selectedOutputs,
+                klass.selectedOutputs
+              );
+              hasMultipleQueries = true;
+            } else if (existingKlass.selectedOutputs) {
+              selectedOutputs = existingKlass.selectedOutputs;
+              hasMultipleQueries = existingKlass.hasMultipleQueries || false;
+            } else if (klass.selectedOutputs) {
+              selectedOutputs = klass.selectedOutputs;
+              hasMultipleQueries = klass.hasMultipleQueries || false;
+            }
+          }
+        }
+
         this.classes.set(klassId, {
           ...existingKlass,
           inputs: mergedInputs,
           outputs: mergedOutputs,
           selectedOutputs,
+          isCompleteSchema,
+          hasMultipleQueries,
           id: klassId,
         });
         return this;
@@ -99,6 +156,26 @@ export class ParseResult {
     }
     this.classes.set(klassId, { ...klass, id: klassId });
     return this;
+  }
+
+  private mergeSelectedOutputs(
+    existing: FieldValue[] | undefined,
+    incoming: FieldValue[] | undefined
+  ): FieldValue[] | undefined {
+    if (!existing) return incoming;
+    if (!incoming) return existing;
+
+    // Union the fields by name
+    const fieldMap = new Map<string, FieldValue>();
+    for (const field of existing) {
+      fieldMap.set(field.name, field);
+    }
+    for (const field of incoming) {
+      if (!fieldMap.has(field.name)) {
+        fieldMap.set(field.name, field);
+      }
+    }
+    return Array.from(fieldMap.values());
   }
 
   addUnion(union: UnionObject): this {
@@ -187,6 +264,8 @@ const parseSelection = (
       throw new Error(`Found a selection set on a non-object type. Kind: ${fieldType}`);
     }
     const typeName = fieldType.name;
+    const result = parseSelectionSet(typeName, node.selectionSet.selections, fieldType);
+    const klass = result.classes.get(`${typeName}:output`);
     const fieldValue: FieldValue = {
       name: fieldName,
       type: {
@@ -195,8 +274,8 @@ const parseSelection = (
         kind: GQLKind.Object,
         nullable,
       },
+      selectedFields: klass?.selectedOutputs?.map((f) => f.name) || [],
     };
-    const result = parseSelectionSet(typeName, node.selectionSet.selections, fieldType);
     return {
       fieldValue,
       result,
@@ -252,6 +331,7 @@ const parseCompleteSchemaType = (schemaType: GraphQLObjectType): ParseResult => 
     inputs: [],
     outputs,
     isInput: false,
+    isCompleteSchema: true,
   });
 
   return result;
@@ -283,7 +363,7 @@ const parseSelectionSet = (
     name,
     inputs: [],
     outputs,
-    selectedOutputs: outputs, // Track which fields were actually selected
+    // Don't set selectedOutputs here - only set it when merging multiple queries
     isInput: false,
   });
   return result.merge(completeTypeResult);
