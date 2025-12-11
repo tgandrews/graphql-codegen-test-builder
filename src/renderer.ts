@@ -151,6 +151,16 @@ const renderBuildObject = (klass: ClassObject, parseResult: ParseResult, parentP
     }`
 }
 
+const renderBuildVariables = (klass: ClassObject, parseResult: ParseResult): string => {
+  console.log(`Rendering variables for ${klass.name} with inputs:`, klass.inputs)
+  if (!klass.inputs.length) {
+    return ''
+  }
+  return `variables: {
+    ${klass.inputs.map((field) => renderOutputField(field, parseResult)).join(',\n')}
+  }`
+}
+
 const renderBuildResult = (klass: ClassObject, parseResult: ParseResult): string => {
   if (!klass.operation) {
     return renderBuildObject(klass, parseResult, [])
@@ -160,6 +170,7 @@ const renderBuildResult = (klass: ClassObject, parseResult: ParseResult): string
   return `{
     request: {
       query: ${baseName}Document,
+      ${renderBuildVariables(klass, parseResult)}
     },
     result: {
       data: {

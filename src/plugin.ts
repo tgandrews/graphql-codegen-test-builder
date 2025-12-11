@@ -9,7 +9,9 @@ type Config = {
 
 const graphqlCodegenBuilderPlugin: PluginFunction<Partial<Config>, Types.ComplexPluginOutput> = (schema, documents) => {
   const parseResult = parse(schema, documents)
+  console.dir(parseResult, { depth: null, colors: true })
   const optimisedResult = optimiser(parseResult)
+  console.dir(optimisedResult, { depth: null, colors: true })
   const renderedOutput = render(optimisedResult)
   return { content: renderedOutput }
 }

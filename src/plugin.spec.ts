@@ -45,7 +45,7 @@ describe('plugin', () => {
       `type MockUserType = {
         name: string;
       }
-        
+
       class MockGetUserQueryBuilder {
         private me: MockUserType = { 
           name: '', 
@@ -67,6 +67,79 @@ describe('plugin', () => {
                 me: {
                   __typename: 'User',
                   name: this.me.name,
+                }
+              }
+            }
+          } as const
+        }
+      }`
+    ))
+  });
+
+  it('should generate a builder class for a mutation', async () => {
+    const schema = `
+      type Mutation {
+        createUser(input: CreateUserInput!): User!
+      }
+
+      input CreateUserInput {
+        name: String!
+        age: Int
+      }
+
+      type User {
+        name: String!
+        age: Int
+      }
+    `
+    const query = `
+      mutation CreateUser($input: CreateUserInput!) {
+        createUser(input: $input) {
+          name
+        }
+      }
+    `
+    const result = await runPlugin(query, schema)
+    expect(result).toEqual(prettify(
+      `type MockUserType = {
+        name: string;
+        age: number | null;
+      }
+
+      type MockCreateUserInputType = {
+        name: string;
+        age: number | null;
+      }
+
+      class MockCreateUserMutationBuilder {
+        private input: MockCreateUserInputType = {
+          name: '',
+          age: null,
+        };
+        private createUser: MockUserType = {
+          name: '',
+          age: null,
+        };
+
+        havingCreateUser(createUser: MockUserType): this {
+          this.createUser = createUser;
+          return this;
+        }
+
+        build(): MockedResponse<CreateUserMutationResponse, CreateUserMutationVariables> {
+          return {
+            request: {
+              query: CreateUserMutationDocument,
+              variables: {
+                input: this.input,
+              }
+            },
+            result: {
+              data: {
+                __typename: 'Mutation',
+                createUser: {
+                  __typename: 'User',
+                  name: this.createUser.name,
                 }
               }
             }

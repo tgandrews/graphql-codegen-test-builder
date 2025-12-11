@@ -1,5 +1,5 @@
 import { Types } from "@graphql-codegen/plugin-helpers";
-import { GraphQLObjectType, GraphQLOutputType, GraphQLScalarType, GraphQLSchema, isNonNullType, isObjectType, isScalarType, Kind, OperationDefinitionNode, OperationTypeNode, SelectionNode } from "graphql";
+import { GraphQLObjectType, GraphQLOutputType, GraphQLScalarType, GraphQLSchema, InputValueDefinitionNode, isNonNullType, isObjectType, isScalarType, Kind, ListTypeNode, NamedTypeNode, OperationDefinitionNode, OperationTypeNode, SelectionNode, TypeNode, VariableDefinitionNode } from "graphql";
 export enum GQLKind {
   String = 'string',
   Boolean = 'boolean',
@@ -68,16 +68,36 @@ const parseScalarType = (fieldType: GraphQLScalarType, nullable: boolean): Simpl
   switch (fieldType.name) {
     case 'String':
       return { kind: GQLKind.String, nullable }
+    case 'Int':
+      return { kind: GQLKind.Int, nullable }
     default:
       throw new Error(`Unknown scalar type: ${fieldType.name}`)
   } 
 }
 
-const parseType = (fieldType: GraphQLOutputType, nullable: boolean): GQLType => {
+const parseOutputType = (fieldType: GraphQLOutputType, nullable: boolean): GQLType => {
   if (isScalarType(fieldType)) {
     return parseScalarType(fieldType, nullable)
   }
   throw new Error(`Unable to parse type: ${fieldType.toString()}`)
+}
+
+const parseInputType = (fieldType: TypeNode, nullable: boolean): GQLType => {
+  if (fieldType.kind === Kind.NAMED_TYPE) {
+    switch (fieldType.name.value) {
+      case 'String':
+        return { kind: GQLKind.String, nullable }
+      case 'Int':
+        return { kind: GQLKind.Int, nullable }
+      case 'Boolean':
+        return { kind: GQLKind.Boolean, nullable }
+      case 'Float':
+        return { kind: GQLKind.Float, nullable }
+      default:
+        throw new Error(`Unknown named type: ${fieldType.name.value}`)
+    }
+  }
+  throw new Error(`Unsupported input type: ${fieldType.kind} - ${JSON.stringify(fieldType)}`)
 }
 
 
@@ -112,14 +132,14 @@ const parseSelection = (node: SelectionNode, schemaType: GraphQLObjectType): { f
     }
     const result = parseSelectionSet(typeName, node.selectionSet.selections, fieldType)
     return {
-      fieldValue: fieldValue,
+      fieldValue,
       result
     }
   }
 
   const value: FieldValue = {
     name: fieldName,
-    type: parseType(fieldType, nullable),
+    type: parseOutputType(fieldType, nullable),
   }
   return {
     fieldValue: value,
@@ -145,6 +165,90 @@ const parseSelectionSet = (name: string, selections: readonly SelectionNode[], s
   return result
 }
 
+// const parseInputObject = ()
+
+const isNamedTypeNode = (typeNode: NamedTypeNode | ListTypeNode): typeNode is NamedTypeNode => {
+  return typeNode.kind === Kind.NAMED_TYPE
+}
+
+const parseInputValueField = (field: InputValueDefinitionNode): { field: FieldValue, result: ParseResult } => {
+  let fieldType = field.type
+  let nullable = true
+  if (field.type.kind === Kind.NON_NULL_TYPE) {
+    nullable = false
+    fieldType = field.type.type
+  }
+
+  return {
+    field: {
+      name: field.name.value,
+      type: parseInputType(fieldType, nullable)
+    },
+    result: new ParseResult()
+  }
+}
+
+const parseVariableDefinition = (variable: VariableDefinitionNode, schema: GraphQLSchema): { input: FieldValue, result: ParseResult } => {
+  if (!variable.type) {
+    throw new Error(`Variable ${variable.variable.name.value} has no type`)
+  }
+  const name = variable.variable.name.value
+
+  let nullable = true
+  let variableType: NamedTypeNode | ListTypeNode
+  if (variable.type.kind === Kind.NON_NULL_TYPE) {
+    nullable = false
+    variableType = variable.type.type
+  } else {
+    variableType = variable.type
+  }
+
+  if (!isNamedTypeNode(variableType)) {
+    throw new Error(`Unsupported variable type: ${variableType}`)
+  }
+  
+  const variableName = variableType.name.value
+  const graphQLTypeName = variableType.name.value
+  const graphQLType = schema.getType(graphQLTypeName);
+  if (!graphQLType) {
+    throw new Error(`Unable to find GraphQL type for: ${graphQLTypeName}`)
+  }
+  const astNode = graphQLType.astNode;
+  if (!astNode || astNode.kind !== Kind.INPUT_OBJECT_TYPE_DEFINITION) {
+    throw new Error(`GraphQL type ${graphQLTypeName} is not an input object type`)
+  }
+
+  const result = new ParseResult()
+  const { inputs, result: inputResult }  = (astNode.fields ?? []).reduce((result, inputField): { inputs: FieldValue[], result: ParseResult } => {
+    const parsed = parseInputValueField(inputField)
+    return {
+      inputs: [...result.inputs, parsed.field],
+      result: result.result.merge(parsed.result)
+    }
+  }, { inputs: [] as FieldValue[], result })
+
+  inputResult.addClass({
+    name: graphQLTypeName,
+    inputs,
+    outputs: [],
+    isInput: true,
+  })
+
+
+  const input: FieldValue = {
+    name,
+    type: {
+      id: `${variableName}:input`,
+      name: variableName,
+      kind: GQLKind.Object,
+      nullable,
+    }
+  }
+  return {
+    input,
+    result: inputResult,
+  }
+}
 
 const parseOperation = (operation: OperationDefinitionNode, schema: GraphQLSchema): ParseResult => {
   if (!operation.name) {
@@ -165,14 +269,23 @@ const parseOperation = (operation: OperationDefinitionNode, schema: GraphQLSchem
     }
   }, { outputs: [], result: new ParseResult() })
 
-  result.addClass({
+  const variableDefinitions = operation.variableDefinitions ?? []
+  const { inputs, result: variableResult } = variableDefinitions.reduce(({ inputs, result }, variable):  { inputs: FieldValue[], result: ParseResult } => {
+    const parsed = parseVariableDefinition(variable, schema)
+    return {
+      inputs: [...inputs, parsed.input],
+      result: result.merge(parsed.result)
+    }
+  }, { inputs: [] as FieldValue[], result })
+
+  variableResult.addClass({
     name,
-    inputs: [],
+    inputs,
     outputs,
     isInput: true,
     operation: operation.operation === OperationTypeNode.QUERY ? "Query" : "Mutation"
   })
-  return result
+  return variableResult
 
 }
 
