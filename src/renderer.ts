@@ -94,7 +94,9 @@ const renderType = (field: FieldValue, parseResult: ParseResult): string => {
   const typeDef = TYPE_DEFS[field.type.kind]
   // TODO: Fix this typing
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return typeDef.renderType(field as any, parseResult)
+  const baseType = typeDef.renderType(field as any, parseResult)
+  const nullableSuffix = field.type.nullable ? ' | null' : ''
+  return `${baseType}${nullableSuffix}`
 
 }
 
@@ -201,7 +203,7 @@ const renderClassAsType = (klass: ClassObject, parseResult: ParseResult): string
   const fieldsToRender = klass.isInput ? klass.inputs : klass.outputs
   return `type ${name} = {
     ${fieldsToRender.map((field) => 
-      `${field.name}: ${renderType(field, parseResult)}${field.type.nullable ? ' | null' : ''};`
+      `${field.name}: ${renderType(field, parseResult)};`
     ).join('\n    ')}
   }`
 }
