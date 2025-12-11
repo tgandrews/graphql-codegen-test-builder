@@ -8,12 +8,12 @@ function renderClassAsType(klass: ClassObject, parseResult: ParseResult): string
   const fieldsToRender = klass.isInput
     ? klass.inputs
     : klass.hasMultipleQueries && klass.selectedOutputs
-      ? klass.selectedOutputs
-      : klass.outputs;
+    ? klass.selectedOutputs
+    : klass.outputs;
   return `type ${name} = {
     ${fieldsToRender
       .map((field) => `${field.name}: ${renderType(field, parseResult)};`)
-      .join('\n    ')}
+      .join('\n' + Array(4).fill(' ').join(''))}
   }`;
 }
 
@@ -61,16 +61,27 @@ export function renderClass(klass: ClassObject, parseResult: ParseResult): strin
   const className = `Mock${klass.name}${klass.operation ?? ''}Builder`;
   const pickTypes = renderPickTypes(klass, parseResult);
 
+  const inputFields = klass.inputs.map((field) => renderField(field, parseResult, klass));
+  const outputFields = klass.outputs.map((field) => renderField(field, parseResult, klass));
+
+  const inputSetters = klass.inputs.map((field) => renderSetter(field, 'for', parseResult, klass));
+  const outputSetters = klass.outputs.map((field) =>
+    renderSetter(field, 'having', parseResult, klass)
+  );
+
+  const buildMethod = renderBuild(klass, parseResult);
+
+  const parts: Array<string> = [
+    inputFields.join('\n'),
+    outputFields.join('\n'),
+    inputSetters.join('\n'),
+    outputSetters.join('\n'),
+    buildMethod,
+  ];
+  const combinedParts = parts.flat().join('\n\n');
+
   const classBody = `class ${className} {
-    ${klass.inputs.map((field) => renderField(field, parseResult, klass)).join('\n')}
-
-    ${klass.outputs.map((field) => renderField(field, parseResult, klass)).join('\n')}
-
-    ${klass.inputs.map((field) => renderSetter(field, 'for', parseResult, klass)).join('\n')}
-
-    ${klass.outputs.map((field) => renderSetter(field, 'having', parseResult, klass)).join('\n')}
-
-    ${renderBuild(klass, parseResult)}
+${combinedParts}
   }`;
 
   return pickTypes.length > 0 ? pickTypes.join('\n\n') + '\n\n' + classBody : classBody;

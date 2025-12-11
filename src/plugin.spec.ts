@@ -1,6 +1,7 @@
 import { buildSchema, parse } from 'graphql';
 import graphqlBuilderPlugin from './plugin';
-import prettier from 'prettier';
+
+import { prettify } from './test/helpers';
 
 const buildDocuments = (query: string) => {
   const ast = parse(query);
@@ -10,10 +11,6 @@ const buildDocuments = (query: string) => {
       location: 'test.graphql',
     },
   ];
-};
-
-const prettify = (tsString: string) => {
-  return prettier.format(tsString, { parser: 'typescript' });
 };
 
 const runPlugin = async (query: string, schemaString: string) => {

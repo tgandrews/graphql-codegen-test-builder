@@ -13,7 +13,7 @@ export function renderField(
 ): string {
   const type = renderType(field, parseResult, queryContext);
   const defaultValue = renderDefaultValue(field, parseResult, queryContext);
-  return `private ${field.name}:${type} = ${defaultValue}`;
+  return `private ${field.name}: ${type} = ${defaultValue}`;
 }
 
 export function renderSetter(
