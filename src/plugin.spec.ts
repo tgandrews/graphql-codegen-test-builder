@@ -23,7 +23,7 @@ const runPlugin = async (query: string, schemaString: string) => {
 
 
 describe('plugin', () => {
-  it('should generate a builder class', async () => {
+  it('should generate a builder class for a query', async () => {
     const schema = `
       type Query {
         me: User!
@@ -146,6 +146,70 @@ describe('plugin', () => {
                 createUser: {
                   __typename: 'User',
                   name: this.createUser.name,
+                }
+              }
+            }
+          } as const
+        }
+      }`
+    ))
+  });
+
+  it('should inline small classes (<=3 properties)', async () => {
+    const schema = `
+      type Query {
+        me: User!
+      }
+
+      type User {
+        name: String!
+        age: Int
+        email: String
+      }
+    `
+    const query = `
+      query GetUser {
+        me {
+          name
+          age
+          email
+        }
+      }
+    `
+    const result = await runPlugin(query, schema)
+    expect(result).toEqual(prettify(
+      `
+      type MockUserType = {
+        name: string;
+        age: number | null;
+        email: string | null;
+      }
+      
+      class MockGetUserQueryBuilder {
+        private me: MockUserType = { 
+          name: '', 
+          age: null, 
+          email: null, 
+        };
+
+        havingMe(me: MockUserType): this {
+          this.me = me;
+          return this;
+        }
+
+        build(): MockedResponse<GetUserQueryResponse, GetUserQueryVariables> {
+          return {
+            request: {
+              query: GetUserQueryDocument,
+            },
+            result: {
+              data: {
+                __typename: 'Query',
+                me: {
+                  __typename: 'User',
+                  name: this.me.name,
+                  age: this.me.age,
+                  email: this.me.email,
                 }
               }
             }
