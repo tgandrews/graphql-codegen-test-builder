@@ -21,6 +21,7 @@ export type ClassObject = {
   name: string;
   inputs: FieldValue[];
   outputs: FieldValue[];
+  selectedOutputs?: FieldValue[]; // Fields that were actually selected in the query
   isInput: boolean;
   operation?: 'Query' | 'Mutation';
   // TODO: This is a rendering property so shouldn't really live here
@@ -38,8 +39,24 @@ export class ParseResult {
   addClass(klass: Omit<ClassObject, 'id'>): this {
     const klassId = `${klass.name}:${klass.isInput ? 'input' : 'output'}`
     const existingKlass = this.classes.get(klassId)
-    if (existingKlass && existingKlass.isInput === klass.isInput && existingKlass.operation === klass.operation) {
-      throw new Error(`Duplicate classes with the same name (${klass.name}) and type (${klass.isInput ? 'input' : 'output'})`)
+    if (existingKlass) {
+      // If it's the same type (input/output) and same operation, merge the fields
+      if (existingKlass.isInput === klass.isInput && existingKlass.operation === klass.operation) {
+        // Merge inputs and outputs, preferring the more complete one (more fields)
+        const mergedInputs = klass.inputs.length > existingKlass.inputs.length ? klass.inputs : existingKlass.inputs
+        const mergedOutputs = klass.outputs.length > existingKlass.outputs.length ? klass.outputs : existingKlass.outputs
+        // Preserve selectedOutputs from the original (selected fields), not the complete schema
+        const selectedOutputs = existingKlass.selectedOutputs || klass.selectedOutputs
+        this.classes.set(klassId, { 
+          ...existingKlass, 
+          inputs: mergedInputs,
+          outputs: mergedOutputs,
+          selectedOutputs,
+          id: klassId 
+        })
+        return this
+      }
+      throw new Error(`Conflicting classes with the same name (${klass.name}) but different types`)
     }
     this.classes.set(klassId, { ...klass, id: klassId })
     return this
@@ -78,6 +95,14 @@ const parseScalarType = (fieldType: GraphQLScalarType, nullable: boolean): Simpl
 const parseOutputType = (fieldType: GraphQLOutputType, nullable: boolean): GQLType => {
   if (isScalarType(fieldType)) {
     return parseScalarType(fieldType, nullable)
+  }
+  if (isObjectType(fieldType)) {
+    return {
+      id: `${fieldType.name}:output`,
+      name: fieldType.name,
+      kind: GQLKind.Object,
+      nullable,
+    }
   }
   throw new Error(`Unable to parse type: ${fieldType.toString()}`)
 }
@@ -147,6 +172,50 @@ const parseSelection = (node: SelectionNode, schemaType: GraphQLObjectType): { f
   }
 }
 
+const parseCompleteSchemaType = (schemaType: GraphQLObjectType): ParseResult => {
+  const fields = schemaType.getFields()
+  const result = new ParseResult()
+  
+  const outputs: FieldValue[] = []
+  
+  for (const [fieldName, field] of Object.entries(fields)) {
+    let fieldType = field.type
+    let nullable = true
+    if (isNonNullType(fieldType)) {
+      fieldType = fieldType.ofType
+      nullable = false
+    }
+    
+    if (isObjectType(fieldType)) {
+      // For object types, we still need to recurse to generate their definitions
+      outputs.push({
+        name: fieldName,
+        type: {
+          id: `${fieldType.name}:output`,
+          name: fieldType.name,
+          kind: GQLKind.Object,
+          nullable,
+        }
+      })
+      result.merge(parseCompleteSchemaType(fieldType))
+    } else {
+      outputs.push({
+        name: fieldName,
+        type: parseOutputType(fieldType, nullable)
+      })
+    }
+  }
+
+  result.addClass({
+    name: schemaType.name,
+    inputs: [],
+    outputs,
+    isInput: false
+  })
+  
+  return result
+}
+
 const parseSelectionSet = (name: string, selections: readonly SelectionNode[], schemaType: GraphQLObjectType): ParseResult => {
   const { outputs, result } = selections.reduce<{ outputs: FieldValue[], result: ParseResult }>(({ outputs, result },  selection) => {
     const parsed = parseSelection(selection, schemaType)
@@ -156,13 +225,17 @@ const parseSelectionSet = (name: string, selections: readonly SelectionNode[], s
     }
   }, { outputs: [], result: new ParseResult() })
 
+  // Generate complete type from schema for type definitions and mock fields
+  const completeTypeResult = parseCompleteSchemaType(schemaType)
+  
   result.addClass({
     name,
     inputs: [],
     outputs,
+    selectedOutputs: outputs, // Track which fields were actually selected
     isInput: false
   })
-  return result
+  return result.merge(completeTypeResult)
 }
 
 // const parseInputObject = ()

@@ -10,32 +10,36 @@ type TypeDefMap<T extends GQLKind = GQLKind> = {
 
 const TYPE_DEFS: TypeDefMap = {
   [GQLKind.String]: {
-    renderDefaultValue() {
-      return `''`
+    renderDefaultValue(field) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return (field.type as any).nullable ? 'null' : `""`
     },
     renderType() {
       return 'string'
     },
   },
   [GQLKind.Boolean]: {
-    renderDefaultValue() {
-      return 'false'
+    renderDefaultValue(field) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return (field.type as any).nullable ? 'null' : 'false'
     },
     renderType() {
       return 'boolean'
     },
   },
   [GQLKind.Float]: {
-    renderDefaultValue() {
-      return '0.0'
+    renderDefaultValue(field) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return (field.type as any).nullable ? 'null' : '0.0'
     },
     renderType() {
       return 'number'
     },
   },
   [GQLKind.Int]: {
-    renderDefaultValue() {
-      return '0'
+    renderDefaultValue(field) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return (field.type as any).nullable ? 'null' : '0'
     },
     renderType() {
       return 'number'
@@ -65,8 +69,9 @@ const TYPE_DEFS: TypeDefMap = {
         throw new Error(`Unable to find reference to "${referencedTypeId}" from "${field.name}"`)
       }
       if (klass.shouldInline) {
+        const fieldsToRender = klass.isInput ? klass.inputs : klass.outputs
         return `{
-          ${klass.outputs.map((output) => `${output.name}: ${renderDefaultValue(output, parseResult)}`).join(',\n')}
+          ${fieldsToRender.map((output) => `${output.name}: ${renderDefaultValue(output, parseResult)}`).join(',\n          ')}
         }`
       }
       return `new Mock${klass.name}Builder()`
@@ -138,6 +143,9 @@ const renderOutputField = (field: FieldValue, parseResult: ParseResult, parentPa
   if (!klass) {
     throw new Error(`Unable to find reference to "${referencedTypeId}" from "${field.name}"`)
   }
+  if (klass.shouldInline && klass.isInput) {
+    return `${field.name}: this.${[...parentPath,field.name].join('.')}`
+  }
   if (klass.shouldInline) {
     return `${field.name}: ${renderBuildObject(klass, parseResult, [...parentPath, field.name])}`
   }
@@ -145,14 +153,15 @@ const renderOutputField = (field: FieldValue, parseResult: ParseResult, parentPa
 }
 
 const renderBuildObject = (klass: ClassObject, parseResult: ParseResult, parentPath: string[]): string => {
+    // Use selectedOutputs if available (for result objects), otherwise use all outputs (for type definitions)
+    const fieldsToRender = klass.selectedOutputs || klass.outputs
     return `{
       __typename: '${klass.name}',
-      ${klass.outputs.map((field) => renderOutputField(field, parseResult, parentPath))}
+      ${fieldsToRender.map((field) => renderOutputField(field, parseResult, parentPath)).join(',\n      ')}
     }`
 }
 
 const renderBuildVariables = (klass: ClassObject, parseResult: ParseResult): string => {
-  console.log(`Rendering variables for ${klass.name} with inputs:`, klass.inputs)
   if (!klass.inputs.length) {
     return ''
   }
@@ -189,10 +198,11 @@ const renderBuild = (klass: ClassObject, parseResult: ParseResult): string => {
 
 const renderClassAsType = (klass: ClassObject, parseResult: ParseResult): string => {
   const name = `Mock${klass.name}Type`
+  const fieldsToRender = klass.isInput ? klass.inputs : klass.outputs
   return `type ${name} = {
-    ${klass.outputs.map((field) => 
-      `${field.name}: ${renderType(field, parseResult)},`
-    )}
+    ${fieldsToRender.map((field) => 
+      `${field.name}: ${renderType(field, parseResult)}${field.type.nullable ? ' | null' : ''};`
+    ).join('\n    ')}
   }`
 }
 
@@ -206,11 +216,14 @@ const renderClass = (klass: ClassObject, parseResult: ParseResult): string => {
   }
 
   const className = `Mock${klass.name}${klass.operation ?? ''}Builder`
+  
   return `class ${className} {
     ${klass.inputs.map((field) => renderField(field, parseResult)).join('\n')}
+    
     ${klass.outputs.map((field) => renderField(field, parseResult)).join('\n')}
 
     ${klass.inputs.map((field) => renderSetter(field, 'for', parseResult)).join('\n')}
+
     ${klass.outputs.map((field) => renderSetter(field, 'having', parseResult)).join('\n')}
 
     ${renderBuild(klass, parseResult)}

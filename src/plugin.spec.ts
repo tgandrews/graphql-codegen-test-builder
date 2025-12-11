@@ -116,10 +116,16 @@ describe('plugin', () => {
           name: '',
           age: null,
         };
+
         private createUser: MockUserType = {
           name: '',
           age: null,
         };
+
+        forInput(input: MockCreateUserInputType): this {
+          this.input = input;
+          return this;
+        }
 
         havingCreateUser(createUser: MockUserType): this {
           this.createUser = createUser;
