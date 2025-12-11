@@ -1,5 +1,4 @@
 import { ClassObject, FieldValue, GQLKind, ParseResult } from '../parser';
-import { renderDefaultValue } from './typeRenderer';
 
 function renderBuildReturnType(klass: ClassObject): string {
   if (!klass.operation) {
@@ -29,7 +28,12 @@ function renderOutputField(
     return `${field.name}: this.${[...parentPath, field.name].join('.')}`;
   }
   if (klass.shouldInline) {
-    return `${field.name}: ${renderBuildObject(klass, parseResult, [...parentPath, field.name], selectedFieldsFilter)}`;
+    return `${field.name}: ${renderBuildObject(
+      klass,
+      parseResult,
+      [...parentPath, field.name],
+      selectedFieldsFilter
+    )}`;
   }
   return `${field.name}: this.${[...parentPath, field.name].join('.')}.build()`;
 }
@@ -46,6 +50,10 @@ function renderBuildObject(
     fieldsToRender = klass.outputs.filter((f) => selectedFieldsFilter.includes(f.name));
   } else if (klass.selectedOutputs) {
     fieldsToRender = klass.selectedOutputs;
+  }
+
+  if (fieldsToRender.length === 0) {
+    throw new Error(`Class "${klass.name}" has no output fields to render`);
   }
   return `{
       __typename: '${klass.name}',
@@ -69,11 +77,19 @@ function renderBuildResult(klass: ClassObject, parseResult: ParseResult): string
     return renderBuildObject(klass, parseResult, []);
   }
 
+  if (klass.outputs.length === 0) {
+    throw new Error(`Operation "${klass.name}" has no output fields to render`);
+  }
+
   const baseName = `${klass.name}${klass.operation}`;
+  const requestParts = [
+    `query: ${baseName}Document,`,
+    renderBuildVariables(klass, parseResult),
+  ].filter(Boolean);
+
   return `{
     request: {
-      query: ${baseName}Document,
-      ${renderBuildVariables(klass, parseResult)}
+      ${requestParts.join('\n      ')}
     },
     result: {
       data: {
