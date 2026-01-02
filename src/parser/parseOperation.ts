@@ -383,7 +383,8 @@ export function parseOperation(
     inputs,
     outputs,
     isInput: true,
-    operation: operation.operation === OperationTypeNode.QUERY ? ('Query' as const) : ('Mutation' as const),
+    operation:
+      operation.operation === OperationTypeNode.QUERY ? ('Query' as const) : ('Mutation' as const),
   };
 
   const userDefinedConfig = config?.userDefinedClasses?.[klass.name];
