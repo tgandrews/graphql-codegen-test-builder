@@ -19,6 +19,7 @@ import {
 } from 'graphql';
 import { GQLKind, GQLType, FieldValue, SimpleGQLType } from './types';
 import { ParseResult } from './ParseResult';
+import { Config } from '../types';
 
 function parseScalarType(fieldType: GraphQLScalarType, nullable: boolean): SimpleGQLType {
   switch (fieldType.name) {
@@ -64,12 +65,9 @@ function parseInputType(fieldType: TypeNode, nullable: boolean): GQLType {
   throw new Error(`Unsupported input type: ${fieldType.kind} - ${JSON.stringify(fieldType)}`);
 }
 
-function parseCompleteSchemaType(
-  schemaType: GraphQLObjectType,
-  config?: { userDefinedClasses?: Record<string, { path: string; exportName?: string }> }
-): ParseResult {
+function parseCompleteSchemaType(schemaType: GraphQLObjectType, config: Config): ParseResult {
   const fields = schemaType.getFields();
-  const result = new ParseResult();
+  const result = new ParseResult(config);
 
   const outputs: FieldValue[] = [];
 
@@ -109,15 +107,7 @@ function parseCompleteSchemaType(
     isCompleteSchema: true,
   };
 
-  const userDefinedConfig = config?.userDefinedClasses?.[klass.name];
-  if (userDefinedConfig) {
-    result.addClass({
-      ...klass,
-      userDefined: userDefinedConfig,
-    });
-  } else {
-    result.addClass(klass);
-  }
+  result.addClass(klass);
 
   return result;
 }
@@ -125,7 +115,7 @@ function parseCompleteSchemaType(
 function parseSelection(
   node: SelectionNode,
   schemaType: GraphQLObjectType,
-  config?: { userDefinedClasses?: Record<string, { path: string; exportName?: string }> }
+  config: Config
 ): { fieldValue: FieldValue; result: ParseResult } {
   if (node.kind !== Kind.FIELD) {
     throw new Error(`Unsupported selection node type: ${node.kind}`);
@@ -184,7 +174,7 @@ function parseSelection(
   };
   return {
     fieldValue: value,
-    result: new ParseResult(),
+    result: new ParseResult(config),
   };
 }
 
@@ -192,7 +182,7 @@ function parseSelectionSet(
   name: string,
   selections: readonly SelectionNode[],
   schemaType: GraphQLObjectType,
-  config?: { userDefinedClasses?: Record<string, { path: string; exportName?: string }> }
+  config: Config
 ): ParseResult {
   const { outputs, result } = selections.reduce<{
     outputs: FieldValue[];
@@ -205,7 +195,7 @@ function parseSelectionSet(
         result: result.merge(parsed.result),
       };
     },
-    { outputs: [], result: new ParseResult() }
+    { outputs: [], result: new ParseResult(config) }
   );
 
   // Generate complete type from schema for type definitions and mock fields
@@ -219,15 +209,7 @@ function parseSelectionSet(
     isInput: false,
   };
 
-  const userDefinedConfig = config?.userDefinedClasses?.[klass.name];
-  if (userDefinedConfig) {
-    result.addClass({
-      ...klass,
-      userDefined: userDefinedConfig,
-    });
-  } else {
-    result.addClass(klass);
-  }
+  result.addClass(klass);
 
   return result.merge(completeTypeResult);
 }
@@ -236,7 +218,10 @@ function isNamedTypeNode(typeNode: NamedTypeNode | ListTypeNode): typeNode is Na
   return typeNode.kind === Kind.NAMED_TYPE;
 }
 
-function parseInputValueField(field: InputValueDefinitionNode): {
+function parseInputValueField(
+  field: InputValueDefinitionNode,
+  config: Config
+): {
   field: FieldValue;
   result: ParseResult;
 } {
@@ -252,14 +237,14 @@ function parseInputValueField(field: InputValueDefinitionNode): {
       name: field.name.value,
       type: parseInputType(fieldType, nullable),
     },
-    result: new ParseResult(),
+    result: new ParseResult(config),
   };
 }
 
 function parseVariableDefinition(
   variable: VariableDefinitionNode,
   schema: GraphQLSchema,
-  config?: { userDefinedClasses?: Record<string, { path: string; exportName?: string }> }
+  config: Config
 ): { input: FieldValue; result: ParseResult } {
   if (!variable.type) {
     throw new Error(`Variable ${variable.variable.name.value} has no type`);
@@ -290,10 +275,10 @@ function parseVariableDefinition(
     throw new Error(`GraphQL type ${graphQLTypeName} is not an input object type`);
   }
 
-  const result = new ParseResult();
+  const result = new ParseResult(config);
   const { inputs, result: inputResult } = (astNode.fields ?? []).reduce(
     (result, inputField): { inputs: FieldValue[]; result: ParseResult } => {
-      const parsed = parseInputValueField(inputField);
+      const parsed = parseInputValueField(inputField, config);
       return {
         inputs: [...result.inputs, parsed.field],
         result: result.result.merge(parsed.result),
@@ -309,15 +294,7 @@ function parseVariableDefinition(
     isInput: true,
   };
 
-  const userDefinedConfig = config?.userDefinedClasses?.[klass.name];
-  if (userDefinedConfig) {
-    inputResult.addClass({
-      ...klass,
-      userDefined: userDefinedConfig,
-    });
-  } else {
-    inputResult.addClass(klass);
-  }
+  inputResult.addClass(klass);
 
   const input: FieldValue = {
     name,
@@ -337,7 +314,7 @@ function parseVariableDefinition(
 export function parseOperation(
   operation: OperationDefinitionNode,
   schema: GraphQLSchema,
-  config?: { userDefinedClasses?: Record<string, { path: string; exportName?: string }> }
+  config: Config
 ): ParseResult {
   if (!operation.name) {
     throw new Error('Operation has no name');
@@ -363,7 +340,7 @@ export function parseOperation(
         result: result.merge(parsed.result),
       };
     },
-    { outputs: [], result: new ParseResult() }
+    { outputs: [], result: new ParseResult(config) }
   );
 
   const variableDefinitions = operation.variableDefinitions ?? [];
@@ -387,15 +364,7 @@ export function parseOperation(
       operation.operation === OperationTypeNode.QUERY ? ('Query' as const) : ('Mutation' as const),
   };
 
-  const userDefinedConfig = config?.userDefinedClasses?.[klass.name];
-  if (userDefinedConfig) {
-    variableResult.addClass({
-      ...klass,
-      userDefined: userDefinedConfig,
-    });
-  } else {
-    variableResult.addClass(klass);
-  }
+  variableResult.addClass(klass);
 
   return variableResult;
 }

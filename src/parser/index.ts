@@ -2,6 +2,7 @@ import { Types } from '@graphql-codegen/plugin-helpers';
 import { GraphQLSchema, Kind, OperationDefinitionNode } from 'graphql';
 import { ParseResult } from './ParseResult';
 import { parseOperation } from './parseOperation';
+import { Config } from '../types';
 
 // Re-export types and classes
 export * from './types';
@@ -11,7 +12,7 @@ export { ParseResult } from './ParseResult';
 const parse = (
   schema: GraphQLSchema,
   documents: Types.DocumentFile[],
-  config?: { userDefinedClasses?: Record<string, { path: string; exportName?: string }> }
+  config: Config = {}
 ): ParseResult => {
   const result = documents.reduce<ParseResult>((result, { document }) => {
     if (!document) {
@@ -23,7 +24,7 @@ const parse = (
     return operations.reduce<ParseResult>((result, operation) => {
       return result.merge(parseOperation(operation, schema, config));
     }, result);
-  }, new ParseResult());
+  }, new ParseResult(config));
   return result;
 };
 

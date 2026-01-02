@@ -1,11 +1,20 @@
 import { ClassObject, UnionObject } from './types';
 import { mergeClasses } from './merge';
+import { Config } from '../types';
 
 export class ParseResult {
   classes: Map<string, ClassObject> = new Map();
   unions: Map<string, UnionObject> = new Map();
 
+  constructor(private readonly config: Config) {}
+
   addClass(klass: Omit<ClassObject, 'id'>): this {
+    // Apply user-defined class configuration
+    const userDefinedClasses = this.config.userDefinedClasses?.[klass.name];
+    if (userDefinedClasses) {
+      klass.userDefined = userDefinedClasses;
+    }
+
     const klassId = `${klass.name}:${klass.isInput ? 'input' : 'output'}`;
     const existingKlass = this.classes.get(klassId);
 

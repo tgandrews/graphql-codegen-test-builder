@@ -1,7 +1,8 @@
 import { buildSchema, parse } from 'graphql';
-import graphqlBuilderPlugin, { Config } from './plugin';
+import graphqlBuilderPlugin from './plugin';
 
 import { prettify } from './test/helpers';
+import { Config } from './types';
 
 const buildDocuments = (query: string) => {
   const ast = parse(query);
