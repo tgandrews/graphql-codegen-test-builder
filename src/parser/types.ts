@@ -54,6 +54,7 @@ export type ClassObject = {
   shouldInline?: boolean;
   isCompleteSchema?: boolean; // True if this represents all fields from the schema
   hasMultipleQueries?: boolean; // True if multiple queries selected different fields
+  userDefined?: { path: string; exportName?: string }; // User-provided type import info
 };
 
 export type UnionObject = {
