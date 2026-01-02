@@ -2,14 +2,11 @@ import { ClassObject, GQLKind, ParseResult } from '../parser';
 import { renderType, getPickTypeName } from './typeRenderer';
 import { renderField, renderSetter } from './fieldRenderer';
 import { renderBuild } from './buildRenderer';
+import { determineFieldsToRender } from './helpers';
 
 function renderClassAsType(klass: ClassObject, parseResult: ParseResult): string {
   const name = `Mock${klass.name}Type`;
-  const fieldsToRender = klass.isInput
-    ? klass.inputs
-    : klass.hasMultipleQueries && klass.selectedOutputs
-    ? klass.selectedOutputs
-    : klass.outputs;
+  const fieldsToRender = determineFieldsToRender(klass);
   return `type ${name} = {
     ${fieldsToRender
       .map((field) => `${field.name}: ${renderType(field, parseResult)};`)

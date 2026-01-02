@@ -10,9 +10,9 @@ export class ParseResult {
 
   addClass(klass: Omit<ClassObject, 'id'>): this {
     // Apply user-defined class configuration
-    const userDefinedClasses = this.config.userDefinedClasses?.[klass.name];
-    if (userDefinedClasses) {
-      klass.userDefined = userDefinedClasses;
+    const userDefinedClassConfig = this.config.userDefinedClasses?.[klass.name];
+    if (userDefinedClassConfig) {
+      klass.userDefined = userDefinedClassConfig;
     }
 
     const klassId = `${klass.name}:${klass.isInput ? 'input' : 'output'}`;

@@ -1,4 +1,5 @@
 import { FieldValue, GQLKind, GQLType, ParseResult } from '../parser';
+import { determineFieldsToRender } from './helpers';
 
 type TypeDefMap<T extends GQLKind = GQLKind> = {
   [K in T]: {
@@ -74,28 +75,8 @@ export const TYPE_DEFS: TypeDefMap = {
       if (!klass) {
         throw new Error(`Unable to find reference to "${referencedTypeId}" from "${field.name}"`);
       }
-      // User-defined classes should use their default values
-      if (klass.userDefined) {
-        const fieldsToRender = klass.isInput
-          ? klass.inputs
-          : klass.hasMultipleQueries && klass.selectedOutputs
-          ? klass.selectedOutputs
-          : klass.outputs;
-        if (!renderDefaultValueFn) {
-          throw new Error('renderDefaultValueFn is required for Object type');
-        }
-        return `{
-          ${fieldsToRender
-            .map((output) => `${output.name}: ${renderDefaultValueFn(output, parseResult)}`)
-            .join(',\n          ')}
-        }`;
-      }
-      if (klass.shouldInline) {
-        const fieldsToRender = klass.isInput
-          ? klass.inputs
-          : klass.hasMultipleQueries && klass.selectedOutputs
-          ? klass.selectedOutputs
-          : klass.outputs;
+      if (klass.userDefined || klass.shouldInline) {
+        const fieldsToRender = determineFieldsToRender(klass);
         if (!renderDefaultValueFn) {
           throw new Error('renderDefaultValueFn is required for Object type');
         }
