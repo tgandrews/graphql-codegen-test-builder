@@ -355,13 +355,24 @@ export function parseOperation(
     { inputs: [] as FieldValue[], result }
   );
 
+  let operationType: 'Query' | 'Mutation';
+  switch (operation.operation) {
+    case OperationTypeNode.QUERY:
+      operationType = 'Query';
+      break;
+    case OperationTypeNode.MUTATION:
+      operationType = 'Mutation';
+      break;
+    default:
+      throw new Error(`Unsupported operation type: "${operation.operation}"`);
+  }
+
   const klass = {
     name,
     inputs,
     outputs,
     isInput: true,
-    operation:
-      operation.operation === OperationTypeNode.QUERY ? ('Query' as const) : ('Mutation' as const),
+    operation: operationType,
   };
 
   variableResult.addClass(klass);
