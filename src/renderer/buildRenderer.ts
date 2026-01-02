@@ -27,6 +27,33 @@ function renderOutputField(
   if (klass.shouldInline && klass.isInput) {
     return `${field.name}: this.${[...parentPath, field.name].join('.')}`;
   }
+
+  // Handle arrays
+  if (field.isList) {
+    const itemPath = [...parentPath, field.name].join('.');
+    // For user-defined classes, map and extract fields
+    if (klass.userDefined) {
+      const fieldsToRender = selectedFieldsFilter
+        ? klass.outputs.filter((f) => selectedFieldsFilter.includes(f.name))
+        : klass.selectedOutputs ?? klass.outputs;
+      return `${field.name}: this.${itemPath}.map(${field.name.slice(0, -1)} => ({
+      __typename: '${klass.name}',
+      ${fieldsToRender.map((f) => `${f.name}: ${field.name.slice(0, -1)}.${f.name}`).join(',\n      ')}
+    }))`;
+    }
+    // For builders, map and call build()
+    if (!klass.shouldInline) {
+      return `${field.name}: this.${itemPath}.map(item => item.build())`;
+    }
+    // For inlined types, map and render inline
+    return `${field.name}: this.${itemPath}.map(item => ${renderBuildObject(
+      klass,
+      parseResult,
+      ['item'],
+      selectedFieldsFilter
+    )})`;
+  }
+
   if (klass.shouldInline) {
     return `${field.name}: ${renderBuildObject(
       klass,

@@ -142,7 +142,9 @@ function parseSelection(
   }
 
   // Handle list types by unwrapping to get the inner type
+  let isList = false;
   if (isListType(fieldType)) {
+    isList = true;
     let innerType = fieldType.ofType;
     // The inner type might also be non-null (e.g., [User!])
     if (isNonNullType(innerType)) {
@@ -166,6 +168,7 @@ function parseSelection(
         kind: GQLKind.Object,
         nullable,
       },
+      isList,
       selectedFields: (klass?.selectedOutputs ?? klass?.outputs)?.map((f) => f.name) ?? [],
     };
     return {
@@ -177,6 +180,7 @@ function parseSelection(
   const value: FieldValue = {
     name: fieldName,
     type: parseOutputType(fieldType, nullable),
+    isList,
   };
   return {
     fieldValue: value,

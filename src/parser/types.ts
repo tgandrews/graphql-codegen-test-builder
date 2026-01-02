@@ -39,6 +39,7 @@ export type GQLType = SimpleGQLType | UnionGQLType | EnumGQLType | ObjectGQLType
 export type FieldValue = {
   type: GQLType;
   name: string;
+  isList?: boolean; // True if this field is a list/array
   selectedFields?: string[]; // For object types, the field names that were selected
 };
 
