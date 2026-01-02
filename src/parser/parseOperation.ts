@@ -99,15 +99,13 @@ function parseCompleteSchemaType(schemaType: GraphQLObjectType, config: Config):
     }
   }
 
-  const klass = {
+  result.addClass({
     name: schemaType.name,
     inputs: [],
     outputs,
     isInput: false,
     isCompleteSchema: true,
-  };
-
-  result.addClass(klass);
+  });
 
   return result;
 }
@@ -201,15 +199,13 @@ function parseSelectionSet(
   // Generate complete type from schema for type definitions and mock fields
   const completeTypeResult = parseCompleteSchemaType(schemaType, config);
 
-  const klass = {
+  result.addClass({
     name,
     inputs: [],
     outputs,
     // Don't set selectedOutputs here - only set it when merging multiple queries
     isInput: false,
-  };
-
-  result.addClass(klass);
+  });
 
   return result.merge(completeTypeResult);
 }
@@ -287,14 +283,12 @@ function parseVariableDefinition(
     { inputs: [] as FieldValue[], result }
   );
 
-  const klass = {
+  inputResult.addClass({
     name: graphQLTypeName,
     inputs,
     outputs: [],
     isInput: true,
-  };
-
-  inputResult.addClass(klass);
+  });
 
   const input: FieldValue = {
     name,
@@ -367,15 +361,13 @@ export function parseOperation(
       throw new Error(`Unsupported operation type: "${operation.operation}"`);
   }
 
-  const klass = {
+  variableResult.addClass({
     name,
     inputs,
     outputs,
     isInput: true,
     operation: operationType,
-  };
-
-  variableResult.addClass(klass);
+  });
 
   return variableResult;
 }
