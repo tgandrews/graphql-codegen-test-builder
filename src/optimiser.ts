@@ -9,6 +9,10 @@ const inlineSmallClasses: OptimisingFn = (parseResult) => {
     if (klass.operation) {
       return;
     }
+    // If it's a user-defined class, don't inline it (we'll import it instead)
+    if (klass.userDefined) {
+      return;
+    }
     if (klass.inputs.length < MIN_FIELD_COUNT) {
       klass.shouldInline = true;
     }

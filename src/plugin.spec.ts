@@ -2,6 +2,7 @@ import { buildSchema, parse } from 'graphql';
 import graphqlBuilderPlugin from './plugin';
 
 import { prettify } from './test/helpers';
+import { Config } from './types';
 
 const buildDocuments = (query: string) => {
   const ast = parse(query);
@@ -13,10 +14,10 @@ const buildDocuments = (query: string) => {
   ];
 };
 
-const runPlugin = async (query: string, schemaString: string) => {
+const runPlugin = async (query: string, schemaString: string, config: Partial<Config> = {}) => {
   const schema = buildSchema(schemaString);
   const documents = buildDocuments(query);
-  const result = await graphqlBuilderPlugin(schema, documents, {});
+  const result = await graphqlBuilderPlugin(schema, documents, config);
   return prettify(result.content);
 };
 
@@ -311,6 +312,74 @@ describe('plugin', () => {
                   __typename: 'User',
                   email: this.me.email,
                 }
+              }
+            }
+          } as const
+        }
+      }`
+      )
+    );
+  });
+
+  it('should support user defined classes with a named export', async () => {
+    const schema = `
+      type Query {
+        users: [User!]!
+      }
+
+      type User {
+        name: String!
+        age: Int!
+        deletedAt: String!
+        otherField: String!
+        # Unused field to ensure user defined class is used
+        createdAt: String!
+      }
+    `;
+    const query = `
+      query GetUsers {
+        users {
+          name
+          age
+          deletedAt
+          otherField
+        }
+      }
+    `;
+    const config: Partial<Config> = {
+      userDefinedClasses: {
+        User: { path: './userModel', exportName: 'MockUserType' },
+      },
+    };
+    const result = await runPlugin(query, schema, config);
+    expect(result).toEqual(
+      prettify(
+        `
+      import { MockUserType } from './userModel';
+
+      class MockGetUsersQueryBuilder {
+        private users: MockUserType[] = [];
+
+        havingUsers(users: MockUserType[]): this {
+          this.users = users;
+          return this;
+        }
+
+        build(): MockedResponse<GetUsersQueryResponse, GetUsersQueryVariables> {
+          return {
+            request: {
+              query: GetUsersQueryDocument,
+            },
+            result: {
+              data: {
+                __typename: 'Query',
+                users: this.users.map(item => ({
+                  __typename: 'User',
+                  name: item.name,
+                  age: item.age,
+                  deletedAt: item.deletedAt,
+                  otherField: item.otherField,
+                })),
               }
             }
           } as const

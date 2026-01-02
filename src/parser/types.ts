@@ -39,6 +39,7 @@ export type GQLType = SimpleGQLType | UnionGQLType | EnumGQLType | ObjectGQLType
 export type FieldValue = {
   type: GQLType;
   name: string;
+  isList?: boolean; // True if this field is a list/array
   selectedFields?: string[]; // For object types, the field names that were selected
 };
 
@@ -54,6 +55,7 @@ export type ClassObject = {
   shouldInline?: boolean;
   isCompleteSchema?: boolean; // True if this represents all fields from the schema
   hasMultipleQueries?: boolean; // True if multiple queries selected different fields
+  userDefined?: { path: string; exportName?: string }; // User-provided type import info
 };
 
 export type UnionObject = {

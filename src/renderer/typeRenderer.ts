@@ -43,7 +43,8 @@ export function renderType(
   }
 
   const nullableSuffix = field.type.nullable ? ' | null' : '';
-  return `${baseType}${nullableSuffix}`;
+  const arraySuffix = field.isList ? '[]' : '';
+  return `${baseType}${arraySuffix}${nullableSuffix}`;
 }
 
 export function renderDefaultValue(
@@ -51,6 +52,11 @@ export function renderDefaultValue(
   parseResult: ParseResult,
   queryContext?: ClassObject
 ): string {
+  // If this is an array, render it as an empty array
+  if (field.isList) {
+    return '[]';
+  }
+
   // If this is an object with selected fields in a query context, check if we need custom rendering
   if (
     queryContext?.operation &&

@@ -6,7 +6,7 @@ describe('buildRenderer', () => {
   let parseResult: ParseResult;
 
   beforeEach(() => {
-    parseResult = new ParseResult();
+    parseResult = new ParseResult({});
   });
 
   const createSimpleField = (name: string, kind: GQLKind, nullable = false): FieldValue => ({

@@ -4,6 +4,7 @@ import {
   GraphQLScalarType,
   GraphQLSchema,
   InputValueDefinitionNode,
+  isListType,
   isNonNullType,
   isObjectType,
   isScalarType,
@@ -18,6 +19,7 @@ import {
 } from 'graphql';
 import { GQLKind, GQLType, FieldValue, SimpleGQLType } from './types';
 import { ParseResult } from './ParseResult';
+import { Config } from '../types';
 
 function parseScalarType(fieldType: GraphQLScalarType, nullable: boolean): SimpleGQLType {
   switch (fieldType.name) {
@@ -63,9 +65,9 @@ function parseInputType(fieldType: TypeNode, nullable: boolean): GQLType {
   throw new Error(`Unsupported input type: ${fieldType.kind} - ${JSON.stringify(fieldType)}`);
 }
 
-function parseCompleteSchemaType(schemaType: GraphQLObjectType): ParseResult {
+function parseCompleteSchemaType(schemaType: GraphQLObjectType, config: Config): ParseResult {
   const fields = schemaType.getFields();
-  const result = new ParseResult();
+  const result = new ParseResult(config);
 
   const outputs: FieldValue[] = [];
 
@@ -88,7 +90,7 @@ function parseCompleteSchemaType(schemaType: GraphQLObjectType): ParseResult {
           nullable,
         },
       });
-      result.merge(parseCompleteSchemaType(fieldType));
+      result.merge(parseCompleteSchemaType(fieldType, config));
     } else {
       outputs.push({
         name: fieldName,
@@ -110,7 +112,8 @@ function parseCompleteSchemaType(schemaType: GraphQLObjectType): ParseResult {
 
 function parseSelection(
   node: SelectionNode,
-  schemaType: GraphQLObjectType
+  schemaType: GraphQLObjectType,
+  config: Config
 ): { fieldValue: FieldValue; result: ParseResult } {
   if (node.kind !== Kind.FIELD) {
     throw new Error(`Unsupported selection node type: ${node.kind}`);
@@ -126,12 +129,24 @@ function parseSelection(
     nullable = false;
   }
 
+  // Handle list types by unwrapping to get the inner type
+  let isList = false;
+  if (isListType(fieldType)) {
+    isList = true;
+    let innerType = fieldType.ofType;
+    // The inner type might also be non-null (e.g., [User!])
+    if (isNonNullType(innerType)) {
+      innerType = innerType.ofType;
+    }
+    fieldType = innerType;
+  }
+
   if (node.selectionSet?.selections) {
     if (!isObjectType(fieldType)) {
       throw new Error(`Found a selection set on a non-object type. Kind: ${fieldType}`);
     }
     const typeName = fieldType.name;
-    const result = parseSelectionSet(typeName, node.selectionSet.selections, fieldType);
+    const result = parseSelectionSet(typeName, node.selectionSet.selections, fieldType, config);
     const klass = result.classes.get(`${typeName}:output`);
     const fieldValue: FieldValue = {
       name: fieldName,
@@ -141,6 +156,7 @@ function parseSelection(
         kind: GQLKind.Object,
         nullable,
       },
+      isList,
       selectedFields: (klass?.selectedOutputs ?? klass?.outputs)?.map((f) => f.name) ?? [],
     };
     return {
@@ -152,34 +168,36 @@ function parseSelection(
   const value: FieldValue = {
     name: fieldName,
     type: parseOutputType(fieldType, nullable),
+    isList,
   };
   return {
     fieldValue: value,
-    result: new ParseResult(),
+    result: new ParseResult(config),
   };
 }
 
 function parseSelectionSet(
   name: string,
   selections: readonly SelectionNode[],
-  schemaType: GraphQLObjectType
+  schemaType: GraphQLObjectType,
+  config: Config
 ): ParseResult {
   const { outputs, result } = selections.reduce<{
     outputs: FieldValue[];
     result: ParseResult;
   }>(
     ({ outputs, result }, selection) => {
-      const parsed = parseSelection(selection, schemaType);
+      const parsed = parseSelection(selection, schemaType, config);
       return {
         outputs: [...outputs, parsed.fieldValue],
         result: result.merge(parsed.result),
       };
     },
-    { outputs: [], result: new ParseResult() }
+    { outputs: [], result: new ParseResult(config) }
   );
 
   // Generate complete type from schema for type definitions and mock fields
-  const completeTypeResult = parseCompleteSchemaType(schemaType);
+  const completeTypeResult = parseCompleteSchemaType(schemaType, config);
 
   result.addClass({
     name,
@@ -188,6 +206,7 @@ function parseSelectionSet(
     // Don't set selectedOutputs here - only set it when merging multiple queries
     isInput: false,
   });
+
   return result.merge(completeTypeResult);
 }
 
@@ -195,7 +214,10 @@ function isNamedTypeNode(typeNode: NamedTypeNode | ListTypeNode): typeNode is Na
   return typeNode.kind === Kind.NAMED_TYPE;
 }
 
-function parseInputValueField(field: InputValueDefinitionNode): {
+function parseInputValueField(
+  field: InputValueDefinitionNode,
+  config: Config
+): {
   field: FieldValue;
   result: ParseResult;
 } {
@@ -211,13 +233,14 @@ function parseInputValueField(field: InputValueDefinitionNode): {
       name: field.name.value,
       type: parseInputType(fieldType, nullable),
     },
-    result: new ParseResult(),
+    result: new ParseResult(config),
   };
 }
 
 function parseVariableDefinition(
   variable: VariableDefinitionNode,
-  schema: GraphQLSchema
+  schema: GraphQLSchema,
+  config: Config
 ): { input: FieldValue; result: ParseResult } {
   if (!variable.type) {
     throw new Error(`Variable ${variable.variable.name.value} has no type`);
@@ -248,10 +271,10 @@ function parseVariableDefinition(
     throw new Error(`GraphQL type ${graphQLTypeName} is not an input object type`);
   }
 
-  const result = new ParseResult();
+  const result = new ParseResult(config);
   const { inputs, result: inputResult } = (astNode.fields ?? []).reduce(
     (result, inputField): { inputs: FieldValue[]; result: ParseResult } => {
-      const parsed = parseInputValueField(inputField);
+      const parsed = parseInputValueField(inputField, config);
       return {
         inputs: [...result.inputs, parsed.field],
         result: result.result.merge(parsed.result),
@@ -284,7 +307,8 @@ function parseVariableDefinition(
 
 export function parseOperation(
   operation: OperationDefinitionNode,
-  schema: GraphQLSchema
+  schema: GraphQLSchema,
+  config: Config
 ): ParseResult {
   if (!operation.name) {
     throw new Error('Operation has no name');
@@ -304,19 +328,19 @@ export function parseOperation(
     result: ParseResult;
   }>(
     ({ outputs, result }, selection) => {
-      const parsed = parseSelection(selection, schemaType);
+      const parsed = parseSelection(selection, schemaType, config);
       return {
         outputs: [...outputs, parsed.fieldValue],
         result: result.merge(parsed.result),
       };
     },
-    { outputs: [], result: new ParseResult() }
+    { outputs: [], result: new ParseResult(config) }
   );
 
   const variableDefinitions = operation.variableDefinitions ?? [];
   const { inputs, result: variableResult } = variableDefinitions.reduce(
     ({ inputs, result }, variable): { inputs: FieldValue[]; result: ParseResult } => {
-      const parsed = parseVariableDefinition(variable, schema);
+      const parsed = parseVariableDefinition(variable, schema, config);
       return {
         inputs: [...inputs, parsed.input],
         result: result.merge(parsed.result),
@@ -325,12 +349,25 @@ export function parseOperation(
     { inputs: [] as FieldValue[], result }
   );
 
+  let operationType: 'Query' | 'Mutation';
+  switch (operation.operation) {
+    case OperationTypeNode.QUERY:
+      operationType = 'Query';
+      break;
+    case OperationTypeNode.MUTATION:
+      operationType = 'Mutation';
+      break;
+    default:
+      throw new Error(`Unsupported operation type: "${operation.operation}"`);
+  }
+
   variableResult.addClass({
     name,
     inputs,
     outputs,
     isInput: true,
-    operation: operation.operation === OperationTypeNode.QUERY ? 'Query' : 'Mutation',
+    operation: operationType,
   });
+
   return variableResult;
 }

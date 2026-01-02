@@ -3,16 +3,14 @@ import parse from './parser';
 import render from './renderer';
 import optimiser from './optimiser';
 import { log } from './logger';
+import { Config } from './types';
 
-type Config = {
-  option: string;
-};
-
-const graphqlCodegenBuilderPlugin: PluginFunction<Partial<Config>, Types.ComplexPluginOutput> = (
+const graphqlCodegenBuilderPlugin: PluginFunction<Config, Types.ComplexPluginOutput> = (
   schema,
-  documents
+  documents,
+  config
 ) => {
-  const parseResult = parse(schema, documents);
+  const parseResult = parse(schema, documents, config);
   log('parse result', parseResult);
   const optimisedResult = optimiser(parseResult);
   log('optimised result', optimisedResult);
