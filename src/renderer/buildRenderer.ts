@@ -36,9 +36,10 @@ function renderOutputField(
       const fieldsToRender = selectedFieldsFilter
         ? klass.outputs.filter((f) => selectedFieldsFilter.includes(f.name))
         : klass.selectedOutputs ?? klass.outputs;
-      return `${field.name}: this.${itemPath}.map(${field.name.slice(0, -1)} => ({
+      const itemName = 'item';
+      return `${field.name}: this.${itemPath}.map(${itemName} => ({
       __typename: '${klass.name}',
-      ${fieldsToRender.map((f) => `${f.name}: ${field.name.slice(0, -1)}.${f.name}`).join(',\n      ')}
+      ${fieldsToRender.map((f) => `${f.name}: ${itemName}.${f.name}`).join(',\n      ')}
     }))`;
     }
     // For builders, map and call build()

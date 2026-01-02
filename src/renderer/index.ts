@@ -2,7 +2,7 @@ import { ParseResult } from '../parser';
 import { renderClass } from './classRenderer';
 
 const render = (parseResult: ParseResult): string => {
-  const imports: string[] = [];
+  const importStatements = new Set<string>();
   const classes: string[] = [];
 
   parseResult.classes.forEach((klass) => {
@@ -10,9 +10,9 @@ const render = (parseResult: ParseResult): string => {
     if (klass.userDefined) {
       const exportName = klass.userDefined.exportName;
       if (exportName) {
-        imports.push(`import { ${exportName} } from '${klass.userDefined.path}';`);
+        importStatements.add(`import { ${exportName} } from '${klass.userDefined.path}';`);
       } else {
-        imports.push(`import ${klass.name} from '${klass.userDefined.path}';`);
+        importStatements.add(`import ${klass.name} from '${klass.userDefined.path}';`);
       }
       // Don't render the class itself - we're importing it
       return;
@@ -21,6 +21,7 @@ const render = (parseResult: ParseResult): string => {
     classes.push(renderClass(klass, parseResult));
   });
 
+  const imports = Array.from(importStatements);
   const output: string[] = [];
   if (imports.length > 0) {
     output.push(imports.join('\n'));
