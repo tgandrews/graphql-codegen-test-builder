@@ -1,6 +1,7 @@
 import { buildSchema, parse as parseGraphQL } from 'graphql';
 import { Types } from '@graphql-codegen/plugin-helpers';
 import parse, { GQLKind } from './index';
+import { Config } from '../types';
 
 const buildDocuments = (query: string): Types.DocumentFile[] => {
   const ast = parseGraphQL(query);
@@ -297,6 +298,102 @@ describe('parser', () => {
       const userType = result.classes.get('User:output');
       const profileField = userType?.selectedOutputs?.find((f) => f.name === 'profile');
       expect(profileField?.selectedFields).toEqual(['bio', 'avatar']);
+    });
+  });
+
+  describe('user defined classes', () => {
+    it('should mark classes as user-defined based on config', () => {
+      const schema = buildSchema(`
+        type Query {
+          me: User!
+        }
+        type User {
+          name: String!
+        }
+      `);
+      const documents = buildDocuments(`
+        query GetUser {
+          me {
+            name
+          }
+        }
+      `);
+
+      const config: Config = {
+        userDefinedClasses: {
+          User: { path: './models', exportName: 'UserModel' },
+        },
+      };
+      const result = parse(schema, documents, config);
+
+      const userType = result.classes.get('User:output');
+      expect(userType).toBeDefined();
+      expect(userType?.userDefined).toEqual({ path: './models', exportName: 'UserModel' });
+    });
+
+    it('should mark nested user-defined classes', () => {
+      const schema = buildSchema(`
+        type Query {
+          me: User!
+        }
+        type User {
+          name: String!
+          profile: Profile!
+        }
+        type Profile {
+          bio: String!
+        }
+      `);
+      const documents = buildDocuments(`
+        query GetUser {
+          me {
+            name
+            profile {
+              bio
+            }
+          }
+        }
+      `);
+
+      const config: Config = {
+        userDefinedClasses: {
+          Profile: { path: './models', exportName: 'ProfileModel' },
+        },
+      };
+      const result = parse(schema, documents, config);
+
+      const profileType = result.classes.get('Profile:output');
+      expect(profileType).toBeDefined();
+      expect(profileType?.userDefined).toEqual({ path: './models', exportName: 'ProfileModel' });
+    });
+
+    it('should handle arrays of user-defined classes', () => {
+      const schema = buildSchema(`
+        type Query {
+          users: [User!]!
+        }
+        type User {
+          name: String!
+        }
+      `);
+      const documents = buildDocuments(`
+        query GetUsers {
+          users {
+            name
+          }
+        }
+      `);
+
+      const config: Config = {
+        userDefinedClasses: {
+          User: { path: './models', exportName: 'UserModel' },
+        },
+      };
+      const result = parse(schema, documents, config);
+
+      const userType = result.classes.get('User:output');
+      expect(userType).toBeDefined();
+      expect(userType?.userDefined).toEqual({ path: './models', exportName: 'UserModel' });
     });
   });
 });
