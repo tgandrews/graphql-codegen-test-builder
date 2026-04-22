@@ -265,6 +265,126 @@ describe('parser', () => {
     });
   });
 
+  describe('built-in scalars', () => {
+    it('should parse Boolean output fields', () => {
+      const schema = buildSchema(`
+        type Query {
+          me: User!
+        }
+        type User {
+          isActive: Boolean!
+          isVerified: Boolean
+        }
+      `);
+      const documents = buildDocuments(`
+        query GetUser {
+          me {
+            isActive
+            isVerified
+          }
+        }
+      `);
+
+      const result = parse(schema, documents);
+
+      const userType = result.classes.get('User:output');
+      const isActive = userType?.outputs.find((f) => f.name === 'isActive');
+      const isVerified = userType?.outputs.find((f) => f.name === 'isVerified');
+
+      expect(isActive?.type).toEqual({ kind: GQLKind.Boolean, nullable: false });
+      expect(isVerified?.type).toEqual({ kind: GQLKind.Boolean, nullable: true });
+    });
+
+    it('should parse Float output fields', () => {
+      const schema = buildSchema(`
+        type Query {
+          me: User!
+        }
+        type User {
+          score: Float!
+          rating: Float
+        }
+      `);
+      const documents = buildDocuments(`
+        query GetUser {
+          me {
+            score
+            rating
+          }
+        }
+      `);
+
+      const result = parse(schema, documents);
+
+      const userType = result.classes.get('User:output');
+      const score = userType?.outputs.find((f) => f.name === 'score');
+      const rating = userType?.outputs.find((f) => f.name === 'rating');
+
+      expect(score?.type).toEqual({ kind: GQLKind.Float, nullable: false });
+      expect(rating?.type).toEqual({ kind: GQLKind.Float, nullable: true });
+    });
+
+    it('should parse ID output fields as strings', () => {
+      const schema = buildSchema(`
+        type Query {
+          me: User!
+        }
+        type User {
+          id: ID!
+          parentId: ID
+        }
+      `);
+      const documents = buildDocuments(`
+        query GetUser {
+          me {
+            id
+            parentId
+          }
+        }
+      `);
+
+      const result = parse(schema, documents);
+
+      const userType = result.classes.get('User:output');
+      const id = userType?.outputs.find((f) => f.name === 'id');
+      const parentId = userType?.outputs.find((f) => f.name === 'parentId');
+
+      expect(id?.type).toEqual({ kind: GQLKind.String, nullable: false });
+      expect(parentId?.type).toEqual({ kind: GQLKind.String, nullable: true });
+    });
+
+    it('should parse ID input fields as strings on mutation variables', () => {
+      const schema = buildSchema(`
+        type Mutation {
+          deleteUser(input: DeleteUserInput!): User!
+        }
+        input DeleteUserInput {
+          id: ID!
+          softDelete: Boolean
+        }
+        type User {
+          id: ID!
+        }
+      `);
+      const documents = buildDocuments(`
+        mutation DeleteUser($input: DeleteUserInput!) {
+          deleteUser(input: $input) {
+            id
+          }
+        }
+      `);
+
+      const result = parse(schema, documents);
+
+      const inputType = result.classes.get('DeleteUserInput:input');
+      const idField = inputType?.inputs.find((f) => f.name === 'id');
+      const softDeleteField = inputType?.inputs.find((f) => f.name === 'softDelete');
+
+      expect(idField?.type).toEqual({ kind: GQLKind.String, nullable: false });
+      expect(softDeleteField?.type).toEqual({ kind: GQLKind.Boolean, nullable: true });
+    });
+  });
+
   describe('selected fields tracking', () => {
     it('should track selected fields for nested objects', () => {
       const schema = buildSchema(`

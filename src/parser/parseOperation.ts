@@ -24,9 +24,14 @@ import { Config } from '../types';
 function parseScalarType(fieldType: GraphQLScalarType, nullable: boolean): SimpleGQLType {
   switch (fieldType.name) {
     case 'String':
+    case 'ID':
       return { kind: GQLKind.String, nullable };
     case 'Int':
       return { kind: GQLKind.Int, nullable };
+    case 'Boolean':
+      return { kind: GQLKind.Boolean, nullable };
+    case 'Float':
+      return { kind: GQLKind.Float, nullable };
     default:
       throw new Error(`Unknown scalar type: ${fieldType.name}`);
   }
@@ -51,6 +56,7 @@ function parseInputType(fieldType: TypeNode, nullable: boolean): GQLType {
   if (fieldType.kind === Kind.NAMED_TYPE) {
     switch (fieldType.name.value) {
       case 'String':
+      case 'ID':
         return { kind: GQLKind.String, nullable };
       case 'Int':
         return { kind: GQLKind.Int, nullable };
