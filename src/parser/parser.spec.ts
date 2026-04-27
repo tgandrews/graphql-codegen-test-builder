@@ -646,6 +646,34 @@ describe('parser', () => {
         'Circular fragment reference detected: UserSummary -> UserCore -> UserSummary'
       );
     });
+
+    it('should reject conflicting duplicate fragment definitions across documents', () => {
+      const schema = buildSchema(`
+        type Query {
+          me: User!
+        }
+        type User {
+          name: String!
+          email: String!
+        }
+      `);
+      const documents = [
+        ...buildDocuments(`
+          fragment UserSummary on User {
+            name
+          }
+        `),
+        ...buildDocuments(`
+          fragment UserSummary on User {
+            email
+          }
+        `),
+      ];
+
+      expect(() => parse(schema, documents)).toThrow(
+        'Conflicting fragments with the same name (UserSummary)'
+      );
+    });
   });
 
   describe('user defined classes', () => {

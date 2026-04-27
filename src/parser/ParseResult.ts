@@ -1,6 +1,28 @@
 import { ClassObject, FragmentObject, UnionObject } from './types';
-import { mergeClasses } from './merge';
+import { mergeClasses, mergeFieldValuesByName } from './merge';
 import { Config } from '../types';
+
+function normalizeStringArray(values?: string[]): string[] | undefined {
+  if (!values?.length) {
+    return undefined;
+  }
+
+  return [...values].sort();
+}
+
+function normalizeFragmentOutputs(fragment: FragmentObject): string {
+  const normalizedOutputs = mergeFieldValuesByName(fragment.outputs)
+    .map((field) => ({
+      name: field.name,
+      type: field.type,
+      isList: field.isList,
+      selectedFields: normalizeStringArray(field.selectedFields),
+      fragmentSpreads: normalizeStringArray(field.fragmentSpreads),
+    }))
+    .sort((left, right) => left.name.localeCompare(right.name));
+
+  return JSON.stringify(normalizedOutputs);
+}
 
 export class ParseResult {
   classes: Map<string, ClassObject> = new Map();
@@ -53,24 +75,11 @@ export class ParseResult {
       throw new Error(`Conflicting fragments with the same name (${fragment.name})`);
     }
 
-    this.fragments.set(fragment.name, {
-      ...existingFragment,
-      outputs: mergeClasses(
-        {
-          id: existingFragment.id,
-          name: existingFragment.name,
-          inputs: [],
-          outputs: existingFragment.outputs,
-          isInput: false,
-        },
-        {
-          name: fragment.name,
-          inputs: [],
-          outputs: fragment.outputs,
-          isInput: false,
-        }
-      ).outputs,
-    });
+    const incomingFragment: FragmentObject = { ...fragment, id: fragment.name };
+    if (normalizeFragmentOutputs(existingFragment) !== normalizeFragmentOutputs(incomingFragment)) {
+      throw new Error(`Conflicting fragments with the same name (${fragment.name})`);
+    }
+
     return this;
   }
 
