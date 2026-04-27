@@ -1,5 +1,6 @@
 import { FieldValue, FragmentObject, GQLKind, ParseResult } from '../parser';
 import { renderField, renderSetter } from './fieldRenderer';
+import { isFragmentBackedField } from './typeRenderer';
 
 function renderFragmentOutputField(
   field: FieldValue,
@@ -14,6 +15,13 @@ function renderFragmentOutputField(
   const klass = parseResult.classes.get(field.type.id);
   if (!klass) {
     throw new Error(`Unable to find reference to "${field.type.id}" from "${field.name}"`);
+  }
+
+  if (isFragmentBackedField(field)) {
+    if (field.isList) {
+      return `${field.name}: this.${fieldPath}.map(item => item.build())`;
+    }
+    return `${field.name}: this.${fieldPath}.build()`;
   }
 
   if (field.isList) {

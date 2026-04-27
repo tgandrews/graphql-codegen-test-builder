@@ -51,4 +51,42 @@ describe('fragmentRenderer', () => {
 }
 `);
   });
+
+  it('should build nested fragment-backed object fields inside fragment builders', () => {
+    parseResult.classes.set('Profile:output', {
+      id: 'Profile:output',
+      name: 'Profile',
+      inputs: [],
+      outputs: [createSimpleField('bio', GQLKind.String)],
+      isInput: false,
+      shouldInline: true,
+      selectedOutputs: [createSimpleField('bio', GQLKind.String)],
+    });
+    parseResult.fragments.set('ProfileSummary', {
+      id: 'ProfileSummary',
+      name: 'ProfileSummary',
+      typeName: 'Profile',
+      outputs: [createSimpleField('bio', GQLKind.String)],
+    });
+
+    const fragment: FragmentObject = {
+      id: 'UserSummary',
+      name: 'UserSummary',
+      typeName: 'User',
+      outputs: [
+        {
+          name: 'profile',
+          type: { kind: GQLKind.Object, name: 'Profile', id: 'Profile:output', nullable: false },
+          selectedFields: ['bio'],
+          fragmentSpreads: ['ProfileSummary'],
+        },
+      ],
+    };
+
+    const result = prettify(renderFragment(fragment, parseResult));
+
+    expect(result).toContain('private profile: MockProfileSummaryFragmentBuilder =');
+    expect(result).toContain('new MockProfileSummaryFragmentBuilder();');
+    expect(result).toContain('profile: this.profile.build(),');
+  });
 });
