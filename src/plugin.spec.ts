@@ -521,6 +521,107 @@ describe('plugin', () => {
     });
   });
 
+  describe('fragment builder composition', () => {
+    it('should allow query builders to compose fragment builders', async () => {
+      const schema = `
+        type Query {
+          me: User!
+        }
+
+        type User {
+          name: String!
+          email: String!
+        }
+      `;
+      const query = `
+        query GetUser {
+          me {
+            ...UserSummary
+          }
+        }
+
+        fragment UserSummary on User {
+          name
+          email
+        }
+      `;
+      const result = await runPlugin(query, schema);
+      expect(result).toEqual(
+        prettify(
+          `class MockUserSummaryFragmentBuilder {
+          private name: string = '';
+
+          private email: string = '';
+
+          havingName(name: string): this {
+            this.name = name;
+            return this;
+          }
+          havingEmail(email: string): this {
+            this.email = email;
+            return this;
+          }
+
+          build() {
+            return {
+              name: this.name,
+              email: this.email,
+            } as const
+          }
+        }
+
+        type MockUserType = {
+          name: string;
+          email: string;
+        }
+
+        class MockGetUserQueryBuilder {
+          private me: MockUserType = {
+            name: '',
+            email: '',
+          };
+
+          private meFragments: MockUserSummaryFragmentBuilder[] = [];
+
+          havingMe(me: MockUserType): this {
+            this.me = me;
+            return this;
+          }
+
+          havingMeWithUserSummary(fragment: MockUserSummaryFragmentBuilder): this {
+            this.meFragments.push(fragment);
+            return this;
+          }
+
+          build(): MockedResponse<GetUserQueryResponse, GetUserQueryVariables> {
+            return {
+              request: {
+                query: GetUserQueryDocument,
+              },
+              result: {
+                data: {
+                  __typename: 'Query',
+                  me: this.meFragments.reduce(
+                    (value, fragment) => ({
+                      ...value,
+                      ...fragment.build(),
+                    }),
+                    {
+                      __typename: 'User',
+                      name: this.me.name,
+                      email: this.me.email,
+                    }
+                  ),
+                }
+              }
+            } as const
+          }
+        }`
+        )
+      );
+    });
+  });
+
   describe('user defined classes', () => {
     it('should support user defined classes with a named export', async () => {
       const schema = `

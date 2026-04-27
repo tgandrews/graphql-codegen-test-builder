@@ -56,14 +56,35 @@ function renderOutputField(
   }
 
   if (klass.shouldInline) {
-    return `${field.name}: ${renderBuildObject(
+    const baseObject = renderBuildObject(
       klass,
       parseResult,
       [...parentPath, field.name],
       selectedFieldsFilter
-    )}`;
+    );
+    if (field.fragmentSpreads?.length && parentPath.length === 0) {
+      return `${field.name}: this.${field.name}Fragments.reduce(
+      (value, fragment) => ({
+        ...value,
+        ...fragment.build()
+      }),
+      ${baseObject}
+    )`;
+    }
+    return `${field.name}: ${baseObject}`;
   }
-  return `${field.name}: this.${[...parentPath, field.name].join('.')}.build()`;
+
+  const builtValue = `this.${[...parentPath, field.name].join('.')}.build()`;
+  if (field.fragmentSpreads?.length && parentPath.length === 0) {
+    return `${field.name}: this.${field.name}Fragments.reduce(
+      (value, fragment) => ({
+        ...value,
+        ...fragment.build()
+      }),
+      ${builtValue}
+    )`;
+  }
+  return `${field.name}: ${builtValue}`;
 }
 
 function renderBuildObject(

@@ -348,6 +348,55 @@ email: this.email
   } as const
   }`);
       });
+
+      it('should merge fragment builder output into object fields', () => {
+        const klass: ClassObject = {
+          id: 'GetUser:output',
+          name: 'GetUser',
+          inputs: [],
+          outputs: [
+            {
+              name: 'user',
+              type: { kind: GQLKind.Object, name: 'User', id: 'User:output', nullable: false },
+              selectedFields: ['name', 'email'],
+              fragmentSpreads: ['UserSummary'],
+            },
+          ],
+          isInput: false,
+          operation: 'Query',
+        };
+
+        parseResult.classes.set('User:output', {
+          id: 'User:output',
+          name: 'User',
+          inputs: [],
+          outputs: [
+            createSimpleField('name', GQLKind.String),
+            createSimpleField('email', GQLKind.String),
+          ],
+          isInput: false,
+          shouldInline: true,
+          selectedOutputs: [
+            createSimpleField('name', GQLKind.String),
+            createSimpleField('email', GQLKind.String),
+          ],
+        });
+        parseResult.fragments.set('UserSummary', {
+          id: 'UserSummary',
+          name: 'UserSummary',
+          typeName: 'User',
+          outputs: [
+            createSimpleField('name', GQLKind.String),
+            createSimpleField('email', GQLKind.String),
+          ],
+        });
+
+        const result = renderBuild(klass, parseResult);
+
+        expect(result).toContain('user: this.userFragments.reduce(');
+        expect(result).toContain("__typename: 'User'");
+        expect(result).toContain('...fragment.build()');
+      });
     });
 
     describe('error cases', () => {
