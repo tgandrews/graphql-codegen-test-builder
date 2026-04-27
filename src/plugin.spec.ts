@@ -230,8 +230,8 @@ describe('plugin', () => {
     });
   });
 
-  describe('re-used query selections', () => {
-    it('should support re-used queries selecting different fields', async () => {
+  describe('reused query selections', () => {
+    it('should support reused queries selecting different fields', async () => {
       const schema = `
         type Query {
           me: User!
@@ -318,6 +318,146 @@ describe('plugin', () => {
                   me: {
                     __typename: 'User',
                     email: this.me.email,
+                  }
+                }
+              }
+            } as const
+          }
+        }`
+        )
+      );
+    });
+  });
+
+  describe('built-in scalars', () => {
+    it('should support all built-in scalars (String, Int, Boolean, Float, ID)', async () => {
+      const schema = `
+        type Query {
+          me: User!
+        }
+
+        type Mutation {
+          deleteUser(input: DeleteUserInput!): User!
+        }
+
+        input DeleteUserInput {
+          id: ID!
+          soft: Boolean
+        }
+
+        type User {
+          id: ID!
+          name: String!
+          active: Boolean!
+          score: Float!
+          age: Int!
+        }
+      `;
+      const query = `
+        query GetUser {
+          me {
+            id
+            name
+            active
+            score
+            age
+          }
+        }
+
+        mutation DeleteUser($input: DeleteUserInput!) {
+          deleteUser(input: $input) {
+            id
+          }
+        }
+      `;
+      const result = await runPlugin(query, schema);
+      expect(result).toEqual(
+        prettify(
+          `type MockUserType = {
+          id: string;
+          name: string;
+          active: boolean;
+          score: number;
+          age: number;
+        }
+
+        class MockGetUserQueryBuilder {
+          private me: MockUserType = {
+            id: '',
+            name: '',
+            active: false,
+            score: 0.0,
+            age: 0,
+          };
+
+          havingMe(me: MockUserType): this {
+            this.me = me;
+            return this;
+          }
+
+          build(): MockedResponse<GetUserQueryResponse, GetUserQueryVariables> {
+            return {
+              request: {
+                query: GetUserQueryDocument,
+              },
+              result: {
+                data: {
+                  __typename: 'Query',
+                  me: {
+                    __typename: 'User',
+                    id: this.me.id,
+                    name: this.me.name,
+                    active: this.me.active,
+                    score: this.me.score,
+                    age: this.me.age,
+                  }
+                }
+              }
+            } as const
+          }
+        }
+
+        type MockDeleteUserInputType = {
+          id: string;
+          soft: boolean | null;
+        }
+
+        type DeleteUserUserType = Pick<MockUserType, "id">;
+
+        class MockDeleteUserMutationBuilder {
+          private input: MockDeleteUserInputType = {
+            id: '',
+            soft: null,
+          };
+
+          private deleteUser: DeleteUserUserType = {
+            id: '',
+          };
+
+          forInput(input: MockDeleteUserInputType): this {
+            this.input = input;
+            return this;
+          }
+
+          havingDeleteUser(deleteUser: DeleteUserUserType): this {
+            this.deleteUser = deleteUser;
+            return this;
+          }
+
+          build(): MockedResponse<DeleteUserMutationResponse, DeleteUserMutationVariables> {
+            return {
+              request: {
+                query: DeleteUserMutationDocument,
+                variables: {
+                  input: this.input,
+                }
+              },
+              result: {
+                data: {
+                  __typename: 'Mutation',
+                  deleteUser: {
+                    __typename: 'User',
+                    id: this.deleteUser.id,
                   }
                 }
               }
