@@ -469,6 +469,58 @@ describe('plugin', () => {
     });
   });
 
+  describe('standalone fragment builders', () => {
+    it('should generate standalone fragment builders', async () => {
+      const schema = `
+        type Query {
+          me: User!
+        }
+
+        type User {
+          name: String!
+          email: String!
+        }
+      `;
+      const query = `
+        fragment UserSummary on User {
+          name
+          email
+        }
+      `;
+      const result = await runPlugin(query, schema);
+      expect(result).toEqual(
+        prettify(
+          `class MockUserSummaryFragmentBuilder {
+          private name: string = '';
+
+          private email: string = '';
+
+          havingName(name: string): this {
+            this.name = name;
+            return this;
+          }
+          havingEmail(email: string): this {
+            this.email = email;
+            return this;
+          }
+
+          build() {
+            return {
+              name: this.name,
+              email: this.email,
+            } as const
+          }
+        }
+
+        type MockUserType = {
+          name: string;
+          email: string;
+        }`
+        )
+      );
+    });
+  });
+
   describe('user defined classes', () => {
     it('should support user defined classes with a named export', async () => {
       const schema = `
