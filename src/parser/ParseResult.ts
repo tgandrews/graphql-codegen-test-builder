@@ -1,9 +1,10 @@
-import { ClassObject, UnionObject } from './types';
+import { ClassObject, FragmentObject, UnionObject } from './types';
 import { mergeClasses } from './merge';
 import { Config } from '../types';
 
 export class ParseResult {
   classes: Map<string, ClassObject> = new Map();
+  fragments: Map<string, FragmentObject> = new Map();
   unions: Map<string, UnionObject> = new Map();
 
   constructor(private readonly config: Config) {}
@@ -41,9 +42,44 @@ export class ParseResult {
     return this;
   }
 
+  addFragment(fragment: Omit<FragmentObject, 'id'>): this {
+    const existingFragment = this.fragments.get(fragment.name);
+    if (!existingFragment) {
+      this.fragments.set(fragment.name, { ...fragment, id: fragment.name });
+      return this;
+    }
+
+    if (existingFragment.typeName !== fragment.typeName) {
+      throw new Error(`Conflicting fragments with the same name (${fragment.name})`);
+    }
+
+    this.fragments.set(fragment.name, {
+      ...existingFragment,
+      outputs: mergeClasses(
+        {
+          id: existingFragment.id,
+          name: existingFragment.name,
+          inputs: [],
+          outputs: existingFragment.outputs,
+          isInput: false,
+        },
+        {
+          name: fragment.name,
+          inputs: [],
+          outputs: fragment.outputs,
+          isInput: false,
+        }
+      ).outputs,
+    });
+    return this;
+  }
+
   merge(otherParseResult: ParseResult): this {
     for (const klass of otherParseResult.classes.values()) {
       this.addClass(klass);
+    }
+    for (const fragment of otherParseResult.fragments.values()) {
+      this.addFragment(fragment);
     }
     for (const union of otherParseResult.unions.values()) {
       this.addUnion(union);

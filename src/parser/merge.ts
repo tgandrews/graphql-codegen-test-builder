@@ -1,14 +1,28 @@
 import { ClassObject, FieldValue } from './types';
 
+function mergeStringArrays(existing?: string[], incoming?: string[]): string[] | undefined {
+  if (!existing?.length) return incoming;
+  if (!incoming?.length) return existing;
+  return Array.from(new Set([...existing, ...incoming]));
+}
+
+function mergeFieldValue(existing: FieldValue, incoming: FieldValue): FieldValue {
+  return {
+    ...existing,
+    ...incoming,
+    selectedFields: mergeStringArrays(existing.selectedFields, incoming.selectedFields),
+    fragmentSpreads: mergeStringArrays(existing.fragmentSpreads, incoming.fragmentSpreads),
+  };
+}
+
 function unionFieldsByName(arr1: FieldValue[], arr2: FieldValue[]): FieldValue[] {
   const fieldMap = new Map<string, FieldValue>();
   for (const field of arr1) {
     fieldMap.set(field.name, field);
   }
   for (const field of arr2) {
-    if (!fieldMap.has(field.name)) {
-      fieldMap.set(field.name, field);
-    }
+    const existingField = fieldMap.get(field.name);
+    fieldMap.set(field.name, existingField ? mergeFieldValue(existingField, field) : field);
   }
   return Array.from(fieldMap.values());
 }
