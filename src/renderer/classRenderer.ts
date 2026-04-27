@@ -3,7 +3,6 @@ import { renderType, getPickTypeName } from './typeRenderer';
 import { renderField, renderSetter } from './fieldRenderer';
 import { renderBuild } from './buildRenderer';
 import { determineFieldsToRender } from './helpers';
-import { capitalise } from '../utils';
 
 function renderClassAsType(klass: ClassObject, parseResult: ParseResult): string {
   const name = `Mock${klass.name}Type`;
@@ -22,6 +21,7 @@ function renderPickTypes(klass: ClassObject, parseResult: ParseResult): string[]
   for (const field of klass.outputs) {
     if (
       field.type.kind === GQLKind.Object &&
+      !field.fragmentSpreads?.length &&
       field.selectedFields &&
       field.selectedFields.length > 0
     ) {
@@ -47,34 +47,6 @@ function renderPickTypes(klass: ClassObject, parseResult: ParseResult): string[]
   return pickTypes;
 }
 
-function renderFragmentFields(klass: ClassObject): string[] {
-  return klass.outputs
-    .filter((field) => field.type.kind === GQLKind.Object && field.fragmentSpreads?.length)
-    .map((field) => {
-      const fragmentTypes = field.fragmentSpreads
-        ?.map((fragmentName) => `Mock${fragmentName}FragmentBuilder`)
-        .join(' | ');
-      return `private ${field.name}Fragments: ${fragmentTypes}[] = []`;
-    });
-}
-
-function renderFragmentSetters(klass: ClassObject): string[] {
-  return klass.outputs.flatMap((field) => {
-    if (field.type.kind !== GQLKind.Object || !field.fragmentSpreads?.length) {
-      return [];
-    }
-
-    const fieldName = capitalise(field.name);
-    return field.fragmentSpreads.map((fragmentName) => {
-      const fragmentType = `Mock${fragmentName}FragmentBuilder`;
-      return `having${fieldName}With${fragmentName}(fragment: ${fragmentType}): this {
-    this.${field.name}Fragments.push(fragment)
-    return this
-  }`;
-    });
-  });
-}
-
 export function renderClass(klass: ClassObject, parseResult: ParseResult): string {
   if (klass.shouldInline) {
     if (klass.operation) {
@@ -89,23 +61,19 @@ export function renderClass(klass: ClassObject, parseResult: ParseResult): strin
 
   const inputFields = klass.inputs.map((field) => renderField(field, parseResult, klass));
   const outputFields = klass.outputs.map((field) => renderField(field, parseResult, klass));
-  const fragmentFields = renderFragmentFields(klass);
 
   const inputSetters = klass.inputs.map((field) => renderSetter(field, 'for', parseResult, klass));
   const outputSetters = klass.outputs.map((field) =>
     renderSetter(field, 'having', parseResult, klass)
   );
-  const fragmentSetters = renderFragmentSetters(klass);
 
   const buildMethod = renderBuild(klass, parseResult);
 
   const parts: Array<string> = [
     inputFields.join('\n'),
     outputFields.join('\n'),
-    fragmentFields.join('\n'),
     inputSetters.join('\n'),
     outputSetters.join('\n'),
-    fragmentSetters.join('\n'),
     buildMethod,
   ];
   const combinedParts = parts.flat().join('\n\n');

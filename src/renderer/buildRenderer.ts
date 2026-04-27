@@ -1,4 +1,5 @@
 import { ClassObject, FieldValue, GQLKind, ParseResult } from '../parser';
+import { isFragmentBackedField } from './typeRenderer';
 
 function renderBuildReturnType(klass: ClassObject): string {
   if (!klass.operation) {
@@ -28,9 +29,23 @@ function renderOutputField(
     return `${field.name}: this.${[...parentPath, field.name].join('.')}`;
   }
 
+  const itemPath = [...parentPath, field.name].join('.');
+  if (isFragmentBackedField(field)) {
+    if (field.isList) {
+      return `${field.name}: this.${itemPath}.map(item => ({
+      __typename: '${klass.name}',
+      ...item.build()
+    }))`;
+    }
+
+    return `${field.name}: {
+      __typename: '${klass.name}',
+      ...this.${itemPath}.build()
+    }`;
+  }
+
   // Handle arrays
   if (field.isList) {
-    const itemPath = [...parentPath, field.name].join('.');
     // For user-defined classes, map and extract fields
     if (klass.userDefined) {
       const fieldsToRender = selectedFieldsFilter
@@ -62,28 +77,10 @@ function renderOutputField(
       [...parentPath, field.name],
       selectedFieldsFilter
     );
-    if (field.fragmentSpreads?.length && parentPath.length === 0) {
-      return `${field.name}: this.${field.name}Fragments.reduce(
-      (value, fragment) => ({
-        ...value,
-        ...fragment.build()
-      }),
-      ${baseObject}
-    )`;
-    }
     return `${field.name}: ${baseObject}`;
   }
 
   const builtValue = `this.${[...parentPath, field.name].join('.')}.build()`;
-  if (field.fragmentSpreads?.length && parentPath.length === 0) {
-    return `${field.name}: this.${field.name}Fragments.reduce(
-      (value, fragment) => ({
-        ...value,
-        ...fragment.build()
-      }),
-      ${builtValue}
-    )`;
-  }
   return `${field.name}: ${builtValue}`;
 }
 

@@ -576,20 +576,10 @@ describe('plugin', () => {
         }
 
         class MockGetUserQueryBuilder {
-          private me: MockUserType = {
-            name: '',
-            email: '',
-          };
+          private me: MockUserSummaryFragmentBuilder = new MockUserSummaryFragmentBuilder();
 
-          private meFragments: MockUserSummaryFragmentBuilder[] = [];
-
-          havingMe(me: MockUserType): this {
+          havingMe(me: MockUserSummaryFragmentBuilder): this {
             this.me = me;
-            return this;
-          }
-
-          havingMeWithUserSummary(fragment: MockUserSummaryFragmentBuilder): this {
-            this.meFragments.push(fragment);
             return this;
           }
 
@@ -601,17 +591,84 @@ describe('plugin', () => {
               result: {
                 data: {
                   __typename: 'Query',
-                  me: this.meFragments.reduce(
-                    (value, fragment) => ({
-                      ...value,
-                      ...fragment.build(),
-                    }),
-                    {
-                      __typename: 'User',
-                      name: this.me.name,
-                      email: this.me.email,
-                    }
-                  ),
+                  me: {
+                    __typename: 'User',
+                    ...this.me.build(),
+                  },
+                }
+              }
+            } as const
+          }
+        }`
+        )
+      );
+    });
+  });
+
+  describe('fragment builder lists', () => {
+    it('should allow list fields to accept fragment builder arrays', async () => {
+      const schema = `
+        type Query {
+          users: [User!]!
+        }
+
+        type User {
+          name: String!
+        }
+      `;
+      const query = `
+        query GetUsers {
+          users {
+            ...UserSummary
+          }
+        }
+
+        fragment UserSummary on User {
+          name
+        }
+      `;
+      const result = await runPlugin(query, schema);
+      expect(result).toEqual(
+        prettify(
+          `class MockUserSummaryFragmentBuilder {
+          private name: string = '';
+
+          havingName(name: string): this {
+            this.name = name;
+            return this;
+          }
+
+          build() {
+            return {
+              name: this.name,
+            } as const
+          }
+        }
+
+        type MockUserType = {
+          name: string;
+        }
+
+        class MockGetUsersQueryBuilder {
+          private users: MockUserSummaryFragmentBuilder[] = [];
+
+          havingUsers(users: MockUserSummaryFragmentBuilder[]): this {
+            this.users = users;
+            return this;
+          }
+
+          build(): MockedResponse<GetUsersQueryResponse, GetUsersQueryVariables> {
+            return {
+              request: {
+                query: GetUsersQueryDocument,
+              },
+              result: {
+                data: {
+                  __typename: 'Query',
+                  users: this.users.map(item => ({
+                    __typename: 'User',
+                    ...item.build(),
+                  })),
                 }
               }
             } as const
