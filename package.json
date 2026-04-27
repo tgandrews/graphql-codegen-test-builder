@@ -27,6 +27,6 @@
     "typescript-eslint": "^8.33.1"
   },
   "dependencies": {
-    "@graphql-codegen/plugin-helpers": "^5.1.1"
+    "@graphql-codegen/plugin-helpers": "^6.2.1"
   }
 }
