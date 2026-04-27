@@ -273,7 +273,9 @@ function parseFragmentSelection(
   }
   if (activeFragmentPath.includes(node.name.value)) {
     throw new Error(
-      `Circular fragment reference detected: ${[...activeFragmentPath, node.name.value].join(' -> ')}`
+      `Circular fragment reference detected: ${[...activeFragmentPath, node.name.value].join(
+        ' -> '
+      )}`
     );
   }
   if (fragmentDefinition.typeCondition.name.value !== schemaType.name) {
@@ -499,8 +501,8 @@ export function parseFragmentDefinition(
     schemaOrType instanceof GraphQLSchema
       ? schemaOrType.getType(typeName)
       : schemaOrType.name === typeName
-        ? schemaOrType
-        : undefined;
+      ? schemaOrType
+      : undefined;
 
   if (!schemaType || !isObjectType(schemaType)) {
     throw new Error(`Fragment "${fragment.name.value}" must target an object type`);

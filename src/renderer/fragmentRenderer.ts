@@ -34,7 +34,9 @@ export function renderFragment(fragment: FragmentObject, parseResult: ParseResul
   const className = `Mock${fragment.name}FragmentBuilder`;
   const fields = fragment.outputs.map((field) => renderField(field, parseResult));
   const setters = fragment.outputs.map((field) => renderSetter(field, 'having', parseResult));
-  const buildFields = fragment.outputs.map((field) => renderFragmentOutputField(field, parseResult));
+  const buildFields = fragment.outputs.map((field) =>
+    renderFragmentOutputField(field, parseResult)
+  );
 
   return `class ${className} {
 ${fields.join('\n\n')}

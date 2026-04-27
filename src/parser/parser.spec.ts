@@ -587,7 +587,9 @@ describe('parser', () => {
         'email',
       ]);
 
-      const meField = result.classes.get('GetUser:input')?.outputs.find((field) => field.name === 'me');
+      const meField = result.classes
+        .get('GetUser:input')
+        ?.outputs.find((field) => field.name === 'me');
       expect(meField?.fragmentSpreads).toEqual(['UserDetails']);
       expect(meField?.selectedFields).toEqual(['id', 'name', 'email']);
     });

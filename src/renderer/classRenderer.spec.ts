@@ -303,9 +303,7 @@ describe('classRenderer', () => {
         const result = prettify(renderClass(klass, parseResult));
 
         expect(result).toContain('private users: MockUserSummaryFragmentBuilder[] = [];');
-        expect(result).toContain(
-          'havingUsers(users: MockUserSummaryFragmentBuilder[]): this {'
-        );
+        expect(result).toContain('havingUsers(users: MockUserSummaryFragmentBuilder[]): this {');
       });
 
       it('should render union fragment builder arrays with correct precedence for list fields', () => {
@@ -357,11 +355,11 @@ describe('classRenderer', () => {
         const result = prettify(renderClass(klass, parseResult));
 
         expect(result).toContain('private users: Array<');
-        expect(result).toContain(
-          'MockUserSummaryFragmentBuilder | MockUserContactFragmentBuilder'
-        );
+        expect(result).toContain('MockUserSummaryFragmentBuilder | MockUserContactFragmentBuilder');
         expect(result).toContain('> = [];');
-        expect(result).not.toContain('MockUserSummaryFragmentBuilder | MockUserContactFragmentBuilder[]');
+        expect(result).not.toContain(
+          'MockUserSummaryFragmentBuilder | MockUserContactFragmentBuilder[]'
+        );
       });
 
       it('should render mutation operation builder class', () => {

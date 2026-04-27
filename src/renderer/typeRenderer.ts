@@ -30,9 +30,7 @@ export function renderFragmentBackedFieldType(field: FieldValue): string {
   }
 
   const baseType =
-    fragmentBuilderTypes.length === 1
-      ? fragmentBuilderTypes[0]
-      : fragmentBuilderTypes.join(' | ');
+    fragmentBuilderTypes.length === 1 ? fragmentBuilderTypes[0] : fragmentBuilderTypes.join(' | ');
 
   const nullableSuffix = field.type.nullable ? ' | null' : '';
   return `${baseType}${nullableSuffix}`;

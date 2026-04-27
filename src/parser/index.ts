@@ -1,10 +1,5 @@
 import { Types } from '@graphql-codegen/plugin-helpers';
-import {
-  FragmentDefinitionNode,
-  GraphQLSchema,
-  Kind,
-  OperationDefinitionNode,
-} from 'graphql';
+import { FragmentDefinitionNode, GraphQLSchema, Kind, OperationDefinitionNode } from 'graphql';
 import { ParseResult } from './ParseResult';
 import { parseFragmentDefinition, parseOperation } from './parseOperation';
 import { Config } from '../types';

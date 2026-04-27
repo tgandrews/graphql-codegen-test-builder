@@ -20,7 +20,10 @@ describe('fragmentRenderer', () => {
       id: 'UserSummary',
       name: 'UserSummary',
       typeName: 'User',
-      outputs: [createSimpleField('name', GQLKind.String), createSimpleField('email', GQLKind.String)],
+      outputs: [
+        createSimpleField('name', GQLKind.String),
+        createSimpleField('email', GQLKind.String),
+      ],
     };
 
     const result = prettify(renderFragment(fragment, parseResult));
