@@ -474,6 +474,78 @@ describe('parser', () => {
       expect(profileField?.selectedFields).toEqual(['bio']);
     });
 
+    it('should not duplicate overlapping direct and fragment-selected fields', () => {
+      const schema = buildSchema(`
+        type Query {
+          me: User!
+        }
+        type User {
+          name: String!
+          email: String!
+        }
+      `);
+      const documents = buildDocuments(`
+        query GetUser {
+          me {
+            name
+            ...UserSummary
+          }
+        }
+
+        fragment UserSummary on User {
+          name
+          email
+        }
+      `);
+
+      const result = parse(schema, documents);
+
+      const operation = result.classes.get('GetUser:input');
+      const meField = operation?.outputs.find((field) => field.name === 'me');
+      expect(operation?.outputs).toHaveLength(1);
+      expect(meField?.selectedFields).toEqual(['name', 'email']);
+
+      const userType = result.classes.get('User:output');
+      expect(userType?.selectedOutputs?.map((field) => field.name)).toEqual(['name', 'email']);
+    });
+
+    it('should not duplicate overlapping fields from multiple fragments', () => {
+      const schema = buildSchema(`
+        type Query {
+          me: User!
+        }
+        type User {
+          name: String!
+          email: String!
+        }
+      `);
+      const documents = buildDocuments(`
+        query GetUser {
+          me {
+            ...UserSummary
+            ...UserContact
+          }
+        }
+
+        fragment UserSummary on User {
+          name
+        }
+
+        fragment UserContact on User {
+          name
+          email
+        }
+      `);
+
+      const result = parse(schema, documents);
+
+      const operation = result.classes.get('GetUser:input');
+      const meField = operation?.outputs.find((field) => field.name === 'me');
+      expect(operation?.outputs).toHaveLength(1);
+      expect(meField?.fragmentSpreads).toEqual(['UserSummary', 'UserContact']);
+      expect(meField?.selectedFields).toEqual(['name', 'email']);
+    });
+
     it('should support fragment spreads inside fragment definitions', () => {
       const schema = buildSchema(`
         type Query {
@@ -540,6 +612,37 @@ describe('parser', () => {
       `);
 
       expect(() => parse(schema, documents)).toThrow('Inline fragments are not supported yet');
+    });
+
+    it('should reject circular fragment references', () => {
+      const schema = buildSchema(`
+        type Query {
+          me: User!
+        }
+        type User {
+          name: String!
+        }
+      `);
+      const documents = buildDocuments(`
+        query GetUser {
+          me {
+            ...UserSummary
+          }
+        }
+
+        fragment UserSummary on User {
+          ...UserCore
+          name
+        }
+
+        fragment UserCore on User {
+          ...UserSummary
+        }
+      `);
+
+      expect(() => parse(schema, documents)).toThrow(
+        'Circular fragment reference detected: UserSummary -> UserCore -> UserSummary'
+      );
     });
   });
 

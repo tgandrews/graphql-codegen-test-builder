@@ -27,6 +27,10 @@ function unionFieldsByName(arr1: FieldValue[], arr2: FieldValue[]): FieldValue[]
   return Array.from(fieldMap.values());
 }
 
+export function mergeFieldValuesByName(fields: FieldValue[]): FieldValue[] {
+  return unionFieldsByName([], fields);
+}
+
 function mergeFieldArrays(arr1: FieldValue[], arr2: FieldValue[]): FieldValue[] {
   if (arr1.length > arr2.length) return arr1;
   if (arr2.length > arr1.length) return arr2;
