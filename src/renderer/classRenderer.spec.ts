@@ -306,6 +306,48 @@ describe('classRenderer', () => {
         expect(result).toContain('havingUsers(users: MockUserSummaryFragmentBuilder[]): this {');
       });
 
+      it('should preserve nullability for fragment-backed list fields', () => {
+        const klass: ClassObject = {
+          id: 'GetUsers:output',
+          name: 'GetUsers',
+          inputs: [],
+          outputs: [
+            {
+              name: 'users',
+              type: { kind: GQLKind.Object, name: 'User', id: 'User:output', nullable: true },
+              isList: true,
+              selectedFields: ['name'],
+              fragmentSpreads: ['UserSummary'],
+            },
+          ],
+          isInput: false,
+          operation: 'Query',
+        };
+
+        parseResult.classes.set('User:output', {
+          id: 'User:output',
+          name: 'User',
+          inputs: [],
+          outputs: [createSimpleField('name', GQLKind.String)],
+          isInput: false,
+          shouldInline: true,
+          selectedOutputs: [createSimpleField('name', GQLKind.String)],
+        });
+        parseResult.fragments.set('UserSummary', {
+          id: 'UserSummary',
+          name: 'UserSummary',
+          typeName: 'User',
+          outputs: [createSimpleField('name', GQLKind.String)],
+        });
+
+        const result = prettify(renderClass(klass, parseResult));
+
+        expect(result).toContain('private users: MockUserSummaryFragmentBuilder[] | null = [];');
+        expect(result).toContain(
+          'havingUsers(users: MockUserSummaryFragmentBuilder[] | null): this {'
+        );
+      });
+
       it('should render union fragment builder arrays with correct precedence for list fields', () => {
         const klass: ClassObject = {
           id: 'GetUsers:output',
