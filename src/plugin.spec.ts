@@ -605,6 +605,80 @@ describe('plugin', () => {
     });
   });
 
+  describe('nullable fragment builder composition', () => {
+    it('should allow nullable fragment-backed singular fields', async () => {
+      const schema = `
+        type Query {
+          me: User
+        }
+
+        type User {
+          name: String!
+        }
+      `;
+      const query = `
+        query GetUser {
+          me {
+            ...UserSummary
+          }
+        }
+
+        fragment UserSummary on User {
+          name
+        }
+      `;
+      const result = await runPlugin(query, schema);
+      expect(result).toEqual(
+        prettify(
+          `class MockUserSummaryFragmentBuilder {
+          private name: string = '';
+
+          havingName(name: string): this {
+            this.name = name;
+            return this;
+          }
+
+          build() {
+            return {
+              name: this.name,
+            } as const
+          }
+        }
+
+        type MockUserType = {
+          name: string;
+        }
+
+        class MockGetUserQueryBuilder {
+          private me: MockUserSummaryFragmentBuilder | null = new MockUserSummaryFragmentBuilder();
+
+          havingMe(me: MockUserSummaryFragmentBuilder | null): this {
+            this.me = me;
+            return this;
+          }
+
+          build(): MockedResponse<GetUserQueryResponse, GetUserQueryVariables> {
+            return {
+              request: {
+                query: GetUserQueryDocument,
+              },
+              result: {
+                data: {
+                  __typename: 'Query',
+                  me: this.me == null ? null : {
+                    __typename: 'User',
+                    ...this.me.build(),
+                  },
+                }
+              }
+            } as const
+          }
+        }`
+        )
+      );
+    });
+  });
+
   describe('fragment builder lists', () => {
     it('should allow list fields to accept fragment builder arrays', async () => {
       const schema = `
