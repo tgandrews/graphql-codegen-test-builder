@@ -89,4 +89,77 @@ describe('fragmentRenderer', () => {
     expect(result).toContain('new MockProfileSummaryFragmentBuilder();');
     expect(result).toContain('profile: this.profile.build(),');
   });
+
+  it('should build nullable nested fragment-backed singular fields safely', () => {
+    parseResult.classes.set('Profile:output', {
+      id: 'Profile:output',
+      name: 'Profile',
+      inputs: [],
+      outputs: [createSimpleField('bio', GQLKind.String)],
+      isInput: false,
+      shouldInline: true,
+      selectedOutputs: [createSimpleField('bio', GQLKind.String)],
+    });
+    parseResult.fragments.set('ProfileSummary', {
+      id: 'ProfileSummary',
+      name: 'ProfileSummary',
+      typeName: 'Profile',
+      outputs: [createSimpleField('bio', GQLKind.String)],
+    });
+
+    const fragment: FragmentObject = {
+      id: 'UserSummary',
+      name: 'UserSummary',
+      typeName: 'User',
+      outputs: [
+        {
+          name: 'profile',
+          type: { kind: GQLKind.Object, name: 'Profile', id: 'Profile:output', nullable: true },
+          selectedFields: ['bio'],
+          fragmentSpreads: ['ProfileSummary'],
+        },
+      ],
+    };
+
+    const result = prettify(renderFragment(fragment, parseResult));
+
+    expect(result).toContain('profile: this.profile?.build() ?? null,');
+  });
+
+  it('should build nullable nested fragment-backed list fields safely', () => {
+    parseResult.classes.set('Profile:output', {
+      id: 'Profile:output',
+      name: 'Profile',
+      inputs: [],
+      outputs: [createSimpleField('bio', GQLKind.String)],
+      isInput: false,
+      shouldInline: true,
+      selectedOutputs: [createSimpleField('bio', GQLKind.String)],
+    });
+    parseResult.fragments.set('ProfileSummary', {
+      id: 'ProfileSummary',
+      name: 'ProfileSummary',
+      typeName: 'Profile',
+      outputs: [createSimpleField('bio', GQLKind.String)],
+    });
+
+    const fragment: FragmentObject = {
+      id: 'UserSummary',
+      name: 'UserSummary',
+      typeName: 'User',
+      outputs: [
+        {
+          name: 'profiles',
+          type: { kind: GQLKind.Object, name: 'Profile', id: 'Profile:output', nullable: true },
+          isList: true,
+          selectedFields: ['bio'],
+          fragmentSpreads: ['ProfileSummary'],
+        },
+      ],
+    };
+
+    const result = prettify(renderFragment(fragment, parseResult));
+
+    expect(result).toContain('profiles: this.profiles?.map((item) => item.build()) ?? null,');
+  });
 });

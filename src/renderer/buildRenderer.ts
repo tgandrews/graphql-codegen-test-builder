@@ -32,10 +32,23 @@ function renderOutputField(
   const itemPath = [...parentPath, field.name].join('.');
   if (isFragmentBackedField(field)) {
     if (field.isList) {
+      if (field.type.nullable) {
+        return `${field.name}: this.${itemPath}?.map(item => ({
+      __typename: '${klass.name}',
+      ...item.build()
+    })) ?? null`;
+      }
       return `${field.name}: this.${itemPath}.map(item => ({
       __typename: '${klass.name}',
       ...item.build()
     }))`;
+    }
+
+    if (field.type.nullable) {
+      return `${field.name}: this.${itemPath} == null ? null : {
+      __typename: '${klass.name}',
+      ...this.${itemPath}.build()
+    }`;
     }
 
     return `${field.name}: {

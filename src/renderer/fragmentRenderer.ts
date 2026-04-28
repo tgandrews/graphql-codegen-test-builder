@@ -19,7 +19,13 @@ function renderFragmentOutputField(
 
   if (isFragmentBackedField(field)) {
     if (field.isList) {
+      if (field.type.nullable) {
+        return `${field.name}: this.${fieldPath}?.map(item => item.build()) ?? null`;
+      }
       return `${field.name}: this.${fieldPath}.map(item => item.build())`;
+    }
+    if (field.type.nullable) {
+      return `${field.name}: this.${fieldPath}?.build() ?? null`;
     }
     return `${field.name}: this.${fieldPath}.build()`;
   }

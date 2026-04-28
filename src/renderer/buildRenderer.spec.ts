@@ -440,6 +440,87 @@ email: this.email
         expect(result).toContain("__typename: 'User'");
         expect(result).toContain('...item.build()');
       });
+
+      it('should build nullable fragment-backed singular object fields safely', () => {
+        const klass: ClassObject = {
+          id: 'GetUser:output',
+          name: 'GetUser',
+          inputs: [],
+          outputs: [
+            {
+              name: 'user',
+              type: { kind: GQLKind.Object, name: 'User', id: 'User:output', nullable: true },
+              selectedFields: ['name'],
+              fragmentSpreads: ['UserSummary'],
+            },
+          ],
+          isInput: false,
+          operation: 'Query',
+        };
+
+        parseResult.classes.set('User:output', {
+          id: 'User:output',
+          name: 'User',
+          inputs: [],
+          outputs: [createSimpleField('name', GQLKind.String)],
+          isInput: false,
+          shouldInline: true,
+          selectedOutputs: [createSimpleField('name', GQLKind.String)],
+        });
+        parseResult.fragments.set('UserSummary', {
+          id: 'UserSummary',
+          name: 'UserSummary',
+          typeName: 'User',
+          outputs: [createSimpleField('name', GQLKind.String)],
+        });
+
+        const result = renderBuild(klass, parseResult);
+
+        expect(result).toContain("user: this.user == null ? null : {");
+        expect(result).toContain("__typename: 'User'");
+        expect(result).toContain('...this.user.build()');
+      });
+
+      it('should build nullable fragment-backed list object fields safely', () => {
+        const klass: ClassObject = {
+          id: 'GetUsers:output',
+          name: 'GetUsers',
+          inputs: [],
+          outputs: [
+            {
+              name: 'users',
+              type: { kind: GQLKind.Object, name: 'User', id: 'User:output', nullable: true },
+              isList: true,
+              selectedFields: ['name'],
+              fragmentSpreads: ['UserSummary'],
+            },
+          ],
+          isInput: false,
+          operation: 'Query',
+        };
+
+        parseResult.classes.set('User:output', {
+          id: 'User:output',
+          name: 'User',
+          inputs: [],
+          outputs: [createSimpleField('name', GQLKind.String)],
+          isInput: false,
+          shouldInline: true,
+          selectedOutputs: [createSimpleField('name', GQLKind.String)],
+        });
+        parseResult.fragments.set('UserSummary', {
+          id: 'UserSummary',
+          name: 'UserSummary',
+          typeName: 'User',
+          outputs: [createSimpleField('name', GQLKind.String)],
+        });
+
+        const result = renderBuild(klass, parseResult);
+
+        expect(result).toContain("users: this.users?.map(item => ({");
+        expect(result).toContain('...item.build()');
+        expect(result).toContain('})) ?? null');
+      });
     });
 
     describe('error cases', () => {
