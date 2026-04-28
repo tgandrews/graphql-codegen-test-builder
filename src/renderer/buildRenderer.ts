@@ -10,6 +10,22 @@ function renderBuildReturnType(klass: ClassObject): string {
   return `: MockedResponse<${baseName}Response, ${baseName}Variables>`;
 }
 
+function renderSelectionBuilderObject(
+  klass: ClassObject,
+  parseResult: ParseResult,
+  parentPath: string[]
+): string {
+  if (klass.outputs.length === 0) {
+    throw new Error(`Class "${klass.name}" has no output fields to render`);
+  }
+
+  return `{
+      ${klass.outputs
+        .map((field) => renderOutputField(field, parseResult, parentPath))
+        .join(',\n      ')}
+    }`;
+}
+
 function renderOutputField(
   field: FieldValue,
   parseResult: ParseResult,
@@ -30,29 +46,57 @@ function renderOutputField(
   }
 
   const itemPath = [...parentPath, field.name].join('.');
-  if (isFragmentBackedField(field)) {
+  const schemaTypeName = field.schemaTypeName ?? klass.name;
+  if (klass.isSelectionBuilder) {
     if (field.isList) {
       if (field.type.nullable) {
         return `${field.name}: this.${itemPath}?.map(item => ({
-      __typename: '${klass.name}',
+      __typename: '${schemaTypeName}',
       ...item.build()
     })) ?? null`;
       }
       return `${field.name}: this.${itemPath}.map(item => ({
-      __typename: '${klass.name}',
+      __typename: '${schemaTypeName}',
       ...item.build()
     }))`;
     }
 
     if (field.type.nullable) {
       return `${field.name}: this.${itemPath} == null ? null : {
-      __typename: '${klass.name}',
+      __typename: '${schemaTypeName}',
       ...this.${itemPath}.build()
     }`;
     }
 
     return `${field.name}: {
-      __typename: '${klass.name}',
+      __typename: '${schemaTypeName}',
+      ...this.${itemPath}.build()
+    }`;
+  }
+
+  if (isFragmentBackedField(field)) {
+    if (field.isList) {
+      if (field.type.nullable) {
+        return `${field.name}: this.${itemPath}?.map(item => ({
+      __typename: '${schemaTypeName}',
+      ...item.build()
+    })) ?? null`;
+      }
+      return `${field.name}: this.${itemPath}.map(item => ({
+      __typename: '${schemaTypeName}',
+      ...item.build()
+    }))`;
+    }
+
+    if (field.type.nullable) {
+      return `${field.name}: this.${itemPath} == null ? null : {
+      __typename: '${schemaTypeName}',
+      ...this.${itemPath}.build()
+    }`;
+    }
+
+    return `${field.name}: {
+      __typename: '${schemaTypeName}',
       ...this.${itemPath}.build()
     }`;
   }
@@ -133,6 +177,9 @@ function renderBuildVariables(klass: ClassObject, parseResult: ParseResult): str
 
 function renderBuildResult(klass: ClassObject, parseResult: ParseResult): string {
   if (!klass.operation) {
+    if (klass.isSelectionBuilder) {
+      return renderSelectionBuilderObject(klass, parseResult, []);
+    }
     return renderBuildObject(klass, parseResult, []);
   }
 

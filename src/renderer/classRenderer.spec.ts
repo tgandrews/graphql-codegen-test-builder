@@ -348,7 +348,7 @@ describe('classRenderer', () => {
         );
       });
 
-      it('should render union fragment builder arrays with correct precedence for list fields', () => {
+      it('should render composed selection builders for list fields with multiple fragments', () => {
         const klass: ClassObject = {
           id: 'GetUsers:output',
           name: 'GetUsers',
@@ -356,52 +356,37 @@ describe('classRenderer', () => {
           outputs: [
             {
               name: 'users',
-              type: { kind: GQLKind.Object, name: 'User', id: 'User:output', nullable: false },
+              type: {
+                kind: GQLKind.Object,
+                name: 'GetUsersUsersSelection',
+                id: 'GetUsersUsersSelection:output',
+                nullable: false,
+              },
               isList: true,
+              schemaTypeName: 'User',
               selectedFields: ['name', 'email'],
-              fragmentSpreads: ['UserSummary', 'UserContact'],
             },
           ],
           isInput: false,
           operation: 'Query',
         };
 
-        parseResult.classes.set('User:output', {
-          id: 'User:output',
-          name: 'User',
+        parseResult.classes.set('GetUsersUsersSelection:output', {
+          id: 'GetUsersUsersSelection:output',
+          name: 'GetUsersUsersSelection',
           inputs: [],
           outputs: [
             createSimpleField('name', GQLKind.String),
             createSimpleField('email', GQLKind.String),
           ],
           isInput: false,
-          shouldInline: true,
-          selectedOutputs: [
-            createSimpleField('name', GQLKind.String),
-            createSimpleField('email', GQLKind.String),
-          ],
-        });
-        parseResult.fragments.set('UserSummary', {
-          id: 'UserSummary',
-          name: 'UserSummary',
-          typeName: 'User',
-          outputs: [createSimpleField('name', GQLKind.String)],
-        });
-        parseResult.fragments.set('UserContact', {
-          id: 'UserContact',
-          name: 'UserContact',
-          typeName: 'User',
-          outputs: [createSimpleField('email', GQLKind.String)],
+          isSelectionBuilder: true,
         });
 
         const result = prettify(renderClass(klass, parseResult));
 
-        expect(result).toContain('private users: Array<');
-        expect(result).toContain('MockUserSummaryFragmentBuilder | MockUserContactFragmentBuilder');
-        expect(result).toContain('> = [];');
-        expect(result).not.toContain(
-          'MockUserSummaryFragmentBuilder | MockUserContactFragmentBuilder[]'
-        );
+        expect(result).toContain('private users: MockGetUsersUsersSelectionBuilder[] = [];');
+        expect(result).toContain('havingUsers(users: MockGetUsersUsersSelectionBuilder[]): this {');
       });
 
       it('should render mutation operation builder class', () => {
