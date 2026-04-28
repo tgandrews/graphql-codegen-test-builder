@@ -465,11 +465,16 @@ describe('parser', () => {
 
       const operation = result.classes.get('GetUser:input');
       const meField = operation?.outputs.find((field) => field.name === 'me');
-      expect(meField?.fragmentSpreads).toEqual(['UserSummary']);
+      const selectionBuilder = result.classes.get('GetUserMeSelection:output');
+      expect(meField?.type.kind).toBe(GQLKind.Object);
+      if (meField?.type.kind !== GQLKind.Object) {
+        throw new Error('Expected me field to be an object');
+      }
+      expect(meField.type.id).toBe('GetUserMeSelection:output');
+      expect(meField?.fragmentSpreads).toBeUndefined();
       expect(meField?.selectedFields).toEqual(['name', 'email', 'profile']);
 
-      const userType = result.classes.get('User:output');
-      const profileField = userType?.selectedOutputs?.find((field) => field.name === 'profile');
+      const profileField = selectionBuilder?.outputs.find((field) => field.name === 'profile');
       expect(profileField?.fragmentSpreads).toEqual(['ProfileSummary']);
       expect(profileField?.selectedFields).toEqual(['bio']);
     });
@@ -534,6 +539,47 @@ describe('parser', () => {
         fragment UserContact on User {
           name
           email
+        }
+      `);
+
+      const result = parse(schema, documents);
+
+      const operation = result.classes.get('GetUser:input');
+      const meField = operation?.outputs.find((field) => field.name === 'me');
+      const selectionBuilder = result.classes.get('GetUserMeSelection:output');
+      expect(operation?.outputs).toHaveLength(1);
+      expect(meField?.type.kind).toBe(GQLKind.Object);
+      if (meField?.type.kind !== GQLKind.Object) {
+        throw new Error('Expected me field to be an object');
+      }
+      expect(meField.type.id).toBe('GetUserMeSelection:output');
+      expect(meField?.schemaTypeName).toBe('User');
+      expect(meField?.fragmentSpreads).toBeUndefined();
+      expect(meField?.selectedFields).toEqual(['name', 'email']);
+      expect(selectionBuilder?.isSelectionBuilder).toBe(true);
+      expect(selectionBuilder?.outputs.map((field) => field.name)).toEqual(['name', 'email']);
+    });
+
+    it('should compose direct fields with fragment spreads into a synthetic selection builder', () => {
+      const schema = buildSchema(`
+        type Query {
+          me: User!
+        }
+        type User {
+          name: String!
+          email: String!
+        }
+      `);
+      const documents = buildDocuments(`
+        query GetUser {
+          me {
+            ...UserSummary
+            email
+          }
+        }
+
+        fragment UserSummary on User {
+          name
         }
       `);
 

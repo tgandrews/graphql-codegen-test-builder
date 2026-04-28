@@ -226,7 +226,12 @@ function parseFieldSelection(
       activeFragmentPath,
       `${selectionOwnerName}${capitalise(fieldName)}`
     );
-    const shouldComposeFragments = result.fragmentSpreads.length > 1;
+    const hasDirectSelections = node.selectionSet.selections.some(
+      (selection) => selection.kind === Kind.FIELD
+    );
+    const shouldComposeFragments =
+      result.fragmentSpreads.length > 1 ||
+      (result.fragmentSpreads.length > 0 && hasDirectSelections);
     const selectionClassName = shouldComposeFragments
       ? `${selectionOwnerName}${capitalise(fieldName)}Selection`
       : typeName;
