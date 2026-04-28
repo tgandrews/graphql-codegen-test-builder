@@ -5,9 +5,18 @@
   "scripts": {
     "test": "jest",
     "lint": "eslint .",
+    "lint:fix": "eslint --fix .",
     "format": "prettier --check .",
     "format:fix": "prettier --write .",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "prepare": "husky"
+  },
+  "lint-staged": {
+    "*.{js,cjs,mjs,ts,tsx}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{json,md,yml,yaml}": "prettier --write"
   },
   "keywords": [],
   "author": "",
@@ -19,6 +28,8 @@
     "@types/prettier": "^2.7.3",
     "eslint": "^9.28.0",
     "graphql": "^16.11.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.4.0",
     "prettier": "^2.8.8",
     "ts-jest": "^29.3.4",
     "ts-node": "^10.9.2",
