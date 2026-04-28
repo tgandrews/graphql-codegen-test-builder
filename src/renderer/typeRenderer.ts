@@ -26,8 +26,8 @@ export function renderFragmentBackedFieldType(field: FieldValue): string {
   if (field.isList) {
     const baseType =
       fragmentBuilderTypes.length === 1
-      ? `${fragmentBuilderTypes[0]}[]`
-      : `Array<${fragmentBuilderTypes.join(' | ')}>`;
+        ? `${fragmentBuilderTypes[0]}[]`
+        : `Array<${fragmentBuilderTypes.join(' | ')}>`;
     const nullableSuffix = field.type.nullable ? ' | null' : '';
     return `${baseType}${nullableSuffix}`;
   }
