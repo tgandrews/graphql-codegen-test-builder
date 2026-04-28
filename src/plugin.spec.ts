@@ -469,6 +469,290 @@ describe('plugin', () => {
     });
   });
 
+  describe('standalone fragment builders', () => {
+    it('should generate standalone fragment builders', async () => {
+      const schema = `
+        type Query {
+          me: User!
+        }
+
+        type User {
+          name: String!
+          email: String!
+        }
+      `;
+      const query = `
+        fragment UserSummary on User {
+          name
+          email
+        }
+      `;
+      const result = await runPlugin(query, schema);
+      expect(result).toEqual(
+        prettify(
+          `class MockUserSummaryFragmentBuilder {
+          private name: string = '';
+
+          private email: string = '';
+
+          havingName(name: string): this {
+            this.name = name;
+            return this;
+          }
+          havingEmail(email: string): this {
+            this.email = email;
+            return this;
+          }
+
+          build() {
+            return {
+              name: this.name,
+              email: this.email,
+            } as const
+          }
+        }
+
+        type MockUserType = {
+          name: string;
+          email: string;
+        }`
+        )
+      );
+    });
+  });
+
+  describe('fragment builder composition', () => {
+    it('should allow query builders to compose fragment builders', async () => {
+      const schema = `
+        type Query {
+          me: User!
+        }
+
+        type User {
+          name: String!
+          email: String!
+        }
+      `;
+      const query = `
+        query GetUser {
+          me {
+            ...UserSummary
+          }
+        }
+
+        fragment UserSummary on User {
+          name
+          email
+        }
+      `;
+      const result = await runPlugin(query, schema);
+      expect(result).toEqual(
+        prettify(
+          `class MockUserSummaryFragmentBuilder {
+          private name: string = '';
+
+          private email: string = '';
+
+          havingName(name: string): this {
+            this.name = name;
+            return this;
+          }
+          havingEmail(email: string): this {
+            this.email = email;
+            return this;
+          }
+
+          build() {
+            return {
+              name: this.name,
+              email: this.email,
+            } as const
+          }
+        }
+
+        type MockUserType = {
+          name: string;
+          email: string;
+        }
+
+        class MockGetUserQueryBuilder {
+          private me: MockUserSummaryFragmentBuilder = new MockUserSummaryFragmentBuilder();
+
+          havingMe(me: MockUserSummaryFragmentBuilder): this {
+            this.me = me;
+            return this;
+          }
+
+          build(): MockedResponse<GetUserQueryResponse, GetUserQueryVariables> {
+            return {
+              request: {
+                query: GetUserQueryDocument,
+              },
+              result: {
+                data: {
+                  __typename: 'Query',
+                  me: {
+                    __typename: 'User',
+                    ...this.me.build(),
+                  },
+                }
+              }
+            } as const
+          }
+        }`
+        )
+      );
+    });
+  });
+
+  describe('nullable fragment builder composition', () => {
+    it('should allow nullable fragment-backed singular fields', async () => {
+      const schema = `
+        type Query {
+          me: User
+        }
+
+        type User {
+          name: String!
+        }
+      `;
+      const query = `
+        query GetUser {
+          me {
+            ...UserSummary
+          }
+        }
+
+        fragment UserSummary on User {
+          name
+        }
+      `;
+      const result = await runPlugin(query, schema);
+      expect(result).toEqual(
+        prettify(
+          `class MockUserSummaryFragmentBuilder {
+          private name: string = '';
+
+          havingName(name: string): this {
+            this.name = name;
+            return this;
+          }
+
+          build() {
+            return {
+              name: this.name,
+            } as const
+          }
+        }
+
+        type MockUserType = {
+          name: string;
+        }
+
+        class MockGetUserQueryBuilder {
+          private me: MockUserSummaryFragmentBuilder | null = new MockUserSummaryFragmentBuilder();
+
+          havingMe(me: MockUserSummaryFragmentBuilder | null): this {
+            this.me = me;
+            return this;
+          }
+
+          build(): MockedResponse<GetUserQueryResponse, GetUserQueryVariables> {
+            return {
+              request: {
+                query: GetUserQueryDocument,
+              },
+              result: {
+                data: {
+                  __typename: 'Query',
+                  me: this.me == null ? null : {
+                    __typename: 'User',
+                    ...this.me.build(),
+                  },
+                }
+              }
+            } as const
+          }
+        }`
+        )
+      );
+    });
+  });
+
+  describe('fragment builder lists', () => {
+    it('should allow list fields to accept fragment builder arrays', async () => {
+      const schema = `
+        type Query {
+          users: [User!]!
+        }
+
+        type User {
+          name: String!
+        }
+      `;
+      const query = `
+        query GetUsers {
+          users {
+            ...UserSummary
+          }
+        }
+
+        fragment UserSummary on User {
+          name
+        }
+      `;
+      const result = await runPlugin(query, schema);
+      expect(result).toEqual(
+        prettify(
+          `class MockUserSummaryFragmentBuilder {
+          private name: string = '';
+
+          havingName(name: string): this {
+            this.name = name;
+            return this;
+          }
+
+          build() {
+            return {
+              name: this.name,
+            } as const
+          }
+        }
+
+        type MockUserType = {
+          name: string;
+        }
+
+        class MockGetUsersQueryBuilder {
+          private users: MockUserSummaryFragmentBuilder[] = [];
+
+          havingUsers(users: MockUserSummaryFragmentBuilder[]): this {
+            this.users = users;
+            return this;
+          }
+
+          build(): MockedResponse<GetUsersQueryResponse, GetUsersQueryVariables> {
+            return {
+              request: {
+                query: GetUsersQueryDocument,
+              },
+              result: {
+                data: {
+                  __typename: 'Query',
+                  users: this.users.map(item => ({
+                    __typename: 'User',
+                    ...item.build(),
+                  })),
+                }
+              }
+            } as const
+          }
+        }`
+        )
+      );
+    });
+  });
+
   describe('user defined classes', () => {
     it('should support user defined classes with a named export', async () => {
       const schema = `

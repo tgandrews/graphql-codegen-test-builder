@@ -21,6 +21,7 @@ function renderPickTypes(klass: ClassObject, parseResult: ParseResult): string[]
   for (const field of klass.outputs) {
     if (
       field.type.kind === GQLKind.Object &&
+      !field.fragmentSpreads?.length &&
       field.selectedFields &&
       field.selectedFields.length > 0
     ) {

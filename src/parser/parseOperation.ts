@@ -1,4 +1,5 @@
 import {
+  FragmentDefinitionNode,
   GraphQLObjectType,
   GraphQLOutputType,
   GraphQLScalarType,
@@ -19,7 +20,16 @@ import {
 } from 'graphql';
 import { GQLKind, GQLType, FieldValue, SimpleGQLType } from './types';
 import { ParseResult } from './ParseResult';
+import { mergeFieldValuesByName } from './merge';
 import { Config } from '../types';
+
+type FragmentDefinitionMap = Map<string, FragmentDefinitionNode>;
+
+type SelectionParseResult = {
+  outputs: FieldValue[];
+  result: ParseResult;
+  fragmentSpreads: string[];
+};
 
 function parseScalarType(fieldType: GraphQLScalarType, nullable: boolean): SimpleGQLType {
   switch (fieldType.name) {
@@ -116,13 +126,64 @@ function parseCompleteSchemaType(schemaType: GraphQLObjectType, config: Config):
   return result;
 }
 
-function parseSelection(
+function parseSelectionSet(
+  name: string,
+  selections: readonly SelectionNode[],
+  schemaType: GraphQLObjectType,
+  config: Config,
+  fragmentDefinitions: FragmentDefinitionMap,
+  activeFragmentPath: string[] = []
+): SelectionParseResult {
+  const parsedSelections = selections.reduce<SelectionParseResult>(
+    (current, selection) => {
+      const parsed = parseSelection(
+        selection,
+        schemaType,
+        config,
+        fragmentDefinitions,
+        activeFragmentPath
+      );
+      return {
+        outputs: [...current.outputs, ...parsed.outputs],
+        result: current.result.merge(parsed.result),
+        fragmentSpreads: [...current.fragmentSpreads, ...parsed.fragmentSpreads],
+      };
+    },
+    {
+      outputs: [],
+      result: new ParseResult(config),
+      fragmentSpreads: [],
+    }
+  );
+
+  const mergedOutputs = mergeFieldValuesByName(parsedSelections.outputs);
+  const fragmentSpreads = Array.from(new Set(parsedSelections.fragmentSpreads));
+
+  const completeTypeResult = parseCompleteSchemaType(schemaType, config);
+  parsedSelections.result.addClass({
+    name,
+    inputs: [],
+    outputs: mergedOutputs,
+    isInput: false,
+  });
+
+  return {
+    ...parsedSelections,
+    outputs: mergedOutputs,
+    fragmentSpreads,
+    result: parsedSelections.result.merge(completeTypeResult),
+  };
+}
+
+function parseFieldSelection(
   node: SelectionNode,
   schemaType: GraphQLObjectType,
-  config: Config
-): { fieldValue: FieldValue; result: ParseResult } {
+  config: Config,
+  fragmentDefinitions: FragmentDefinitionMap,
+  activeFragmentPath: string[] = []
+): SelectionParseResult {
   if (node.kind !== Kind.FIELD) {
-    throw new Error(`Unsupported selection node type: ${node.kind}`);
+    throw new Error(`Unsupported field selection node type: ${node.kind}`);
   }
   const fieldName = node.name.value;
   let fieldType = schemaType.getFields()[fieldName]?.type;
@@ -152,8 +213,15 @@ function parseSelection(
       throw new Error(`Found a selection set on a non-object type. Kind: ${fieldType}`);
     }
     const typeName = fieldType.name;
-    const result = parseSelectionSet(typeName, node.selectionSet.selections, fieldType, config);
-    const klass = result.classes.get(`${typeName}:output`);
+    const result = parseSelectionSet(
+      typeName,
+      node.selectionSet.selections,
+      fieldType,
+      config,
+      fragmentDefinitions,
+      activeFragmentPath
+    );
+    const klass = result.result.classes.get(`${typeName}:output`);
     const fieldValue: FieldValue = {
       name: fieldName,
       type: {
@@ -164,10 +232,12 @@ function parseSelection(
       },
       isList,
       selectedFields: (klass?.selectedOutputs ?? klass?.outputs)?.map((f) => f.name) ?? [],
+      fragmentSpreads: result.fragmentSpreads.length > 0 ? result.fragmentSpreads : undefined,
     };
     return {
-      fieldValue,
-      result,
+      outputs: [fieldValue],
+      result: result.result,
+      fragmentSpreads: [],
     };
   }
 
@@ -177,43 +247,82 @@ function parseSelection(
     isList,
   };
   return {
-    fieldValue: value,
+    outputs: [value],
     result: new ParseResult(config),
+    fragmentSpreads: [],
   };
 }
 
-function parseSelectionSet(
-  name: string,
-  selections: readonly SelectionNode[],
+function parseFragmentSelection(
+  node: SelectionNode,
   schemaType: GraphQLObjectType,
-  config: Config
-): ParseResult {
-  const { outputs, result } = selections.reduce<{
-    outputs: FieldValue[];
-    result: ParseResult;
-  }>(
-    ({ outputs, result }, selection) => {
-      const parsed = parseSelection(selection, schemaType, config);
-      return {
-        outputs: [...outputs, parsed.fieldValue],
-        result: result.merge(parsed.result),
-      };
-    },
-    { outputs: [], result: new ParseResult(config) }
+  config: Config,
+  fragmentDefinitions: FragmentDefinitionMap,
+  activeFragmentPath: string[] = []
+): SelectionParseResult {
+  if (node.kind === Kind.INLINE_FRAGMENT) {
+    throw new Error('Inline fragments are not supported yet');
+  }
+  if (node.kind !== Kind.FRAGMENT_SPREAD) {
+    throw new Error(`Unsupported fragment selection node type: ${node.kind}`);
+  }
+
+  const fragmentDefinition = fragmentDefinitions.get(node.name.value);
+  if (!fragmentDefinition) {
+    throw new Error(`Unable to find fragment definition for: ${node.name.value}`);
+  }
+  if (activeFragmentPath.includes(node.name.value)) {
+    throw new Error(
+      `Circular fragment reference detected: ${[...activeFragmentPath, node.name.value].join(
+        ' -> '
+      )}`
+    );
+  }
+  if (fragmentDefinition.typeCondition.name.value !== schemaType.name) {
+    throw new Error(
+      `Fragment "${node.name.value}" cannot be spread on "${schemaType.name}" because it targets "${fragmentDefinition.typeCondition.name.value}"`
+    );
+  }
+
+  const fragmentResult = parseFragmentDefinition(
+    fragmentDefinition,
+    schemaType,
+    config,
+    fragmentDefinitions,
+    activeFragmentPath
   );
+  const fragment = fragmentResult.fragments.get(node.name.value);
+  if (!fragment) {
+    throw new Error(`Unable to parse fragment definition for: ${node.name.value}`);
+  }
 
-  // Generate complete type from schema for type definitions and mock fields
-  const completeTypeResult = parseCompleteSchemaType(schemaType, config);
+  return {
+    outputs: fragment.outputs,
+    result: fragmentResult,
+    fragmentSpreads: [node.name.value],
+  };
+}
 
-  result.addClass({
-    name,
-    inputs: [],
-    outputs,
-    // Don't set selectedOutputs here - only set it when merging multiple queries
-    isInput: false,
-  });
-
-  return result.merge(completeTypeResult);
+function parseSelection(
+  node: SelectionNode,
+  schemaType: GraphQLObjectType,
+  config: Config,
+  fragmentDefinitions: FragmentDefinitionMap,
+  activeFragmentPath: string[] = []
+): SelectionParseResult {
+  switch (node.kind) {
+    case Kind.FIELD:
+      return parseFieldSelection(node, schemaType, config, fragmentDefinitions, activeFragmentPath);
+    case Kind.FRAGMENT_SPREAD:
+    case Kind.INLINE_FRAGMENT:
+      return parseFragmentSelection(
+        node,
+        schemaType,
+        config,
+        fragmentDefinitions,
+        activeFragmentPath
+      );
+  }
 }
 
 function isNamedTypeNode(typeNode: NamedTypeNode | ListTypeNode): typeNode is NamedTypeNode {
@@ -314,7 +423,8 @@ function parseVariableDefinition(
 export function parseOperation(
   operation: OperationDefinitionNode,
   schema: GraphQLSchema,
-  config: Config
+  config: Config,
+  fragmentDefinitions: FragmentDefinitionMap
 ): ParseResult {
   if (!operation.name) {
     throw new Error('Operation has no name');
@@ -334,14 +444,15 @@ export function parseOperation(
     result: ParseResult;
   }>(
     ({ outputs, result }, selection) => {
-      const parsed = parseSelection(selection, schemaType, config);
+      const parsed = parseSelection(selection, schemaType, config, fragmentDefinitions);
       return {
-        outputs: [...outputs, parsed.fieldValue],
+        outputs: [...outputs, ...parsed.outputs],
         result: result.merge(parsed.result),
       };
     },
     { outputs: [], result: new ParseResult(config) }
   );
+  const mergedOutputs = mergeFieldValuesByName(outputs);
 
   const variableDefinitions = operation.variableDefinitions ?? [];
   const { inputs, result: variableResult } = variableDefinitions.reduce(
@@ -370,10 +481,52 @@ export function parseOperation(
   variableResult.addClass({
     name,
     inputs,
-    outputs,
+    outputs: mergedOutputs,
     isInput: true,
     operation: operationType,
   });
 
   return variableResult;
+}
+
+export function parseFragmentDefinition(
+  fragment: FragmentDefinitionNode,
+  schemaOrType: GraphQLSchema | GraphQLObjectType,
+  config: Config,
+  fragmentDefinitions: FragmentDefinitionMap,
+  activeFragmentPath: string[] = []
+): ParseResult {
+  const typeName = fragment.typeCondition.name.value;
+  const schemaType =
+    schemaOrType instanceof GraphQLSchema
+      ? schemaOrType.getType(typeName)
+      : schemaOrType.name === typeName
+      ? schemaOrType
+      : undefined;
+
+  if (!schemaType || !isObjectType(schemaType)) {
+    throw new Error(`Fragment "${fragment.name.value}" must target an object type`);
+  }
+
+  const currentFragmentPath = [...activeFragmentPath, fragment.name.value];
+  const selectionResult = parseSelectionSet(
+    typeName,
+    fragment.selectionSet.selections,
+    schemaType,
+    config,
+    fragmentDefinitions,
+    currentFragmentPath
+  );
+  const klass = selectionResult.result.classes.get(`${typeName}:output`);
+  if (!klass) {
+    throw new Error(`Unable to find parsed selection output for fragment: ${fragment.name.value}`);
+  }
+
+  selectionResult.result.addFragment({
+    name: fragment.name.value,
+    typeName,
+    outputs: klass.selectedOutputs ?? klass.outputs,
+  });
+
+  return selectionResult.result;
 }

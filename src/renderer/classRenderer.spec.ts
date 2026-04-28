@@ -214,6 +214,196 @@ describe('classRenderer', () => {
 `);
       });
 
+      it('should render fragment-backed object fields using the normal setter', () => {
+        const klass: ClassObject = {
+          id: 'GetUser:output',
+          name: 'GetUser',
+          inputs: [],
+          outputs: [
+            {
+              name: 'user',
+              type: { kind: GQLKind.Object, name: 'User', id: 'User:output', nullable: false },
+              selectedFields: ['name', 'email'],
+              fragmentSpreads: ['UserSummary'],
+            },
+          ],
+          isInput: false,
+          operation: 'Query',
+        };
+
+        parseResult.classes.set('User:output', {
+          id: 'User:output',
+          name: 'User',
+          inputs: [],
+          outputs: [
+            createSimpleField('name', GQLKind.String),
+            createSimpleField('email', GQLKind.String),
+          ],
+          isInput: false,
+          shouldInline: true,
+          selectedOutputs: [
+            createSimpleField('name', GQLKind.String),
+            createSimpleField('email', GQLKind.String),
+          ],
+        });
+        parseResult.fragments.set('UserSummary', {
+          id: 'UserSummary',
+          name: 'UserSummary',
+          typeName: 'User',
+          outputs: [
+            createSimpleField('name', GQLKind.String),
+            createSimpleField('email', GQLKind.String),
+          ],
+        });
+
+        const result = prettify(renderClass(klass, parseResult));
+
+        expect(result).toContain(
+          'private user: MockUserSummaryFragmentBuilder =\n    new MockUserSummaryFragmentBuilder();'
+        );
+        expect(result).toContain('havingUser(user: MockUserSummaryFragmentBuilder): this {');
+        expect(result).not.toContain('havingUserWithUserSummary');
+        expect(result).not.toContain('userFragments');
+      });
+
+      it('should render fragment-backed list fields using fragment builder arrays', () => {
+        const klass: ClassObject = {
+          id: 'GetUsers:output',
+          name: 'GetUsers',
+          inputs: [],
+          outputs: [
+            {
+              name: 'users',
+              type: { kind: GQLKind.Object, name: 'User', id: 'User:output', nullable: false },
+              isList: true,
+              selectedFields: ['name'],
+              fragmentSpreads: ['UserSummary'],
+            },
+          ],
+          isInput: false,
+          operation: 'Query',
+        };
+
+        parseResult.classes.set('User:output', {
+          id: 'User:output',
+          name: 'User',
+          inputs: [],
+          outputs: [createSimpleField('name', GQLKind.String)],
+          isInput: false,
+          shouldInline: true,
+          selectedOutputs: [createSimpleField('name', GQLKind.String)],
+        });
+        parseResult.fragments.set('UserSummary', {
+          id: 'UserSummary',
+          name: 'UserSummary',
+          typeName: 'User',
+          outputs: [createSimpleField('name', GQLKind.String)],
+        });
+
+        const result = prettify(renderClass(klass, parseResult));
+
+        expect(result).toContain('private users: MockUserSummaryFragmentBuilder[] = [];');
+        expect(result).toContain('havingUsers(users: MockUserSummaryFragmentBuilder[]): this {');
+      });
+
+      it('should preserve nullability for fragment-backed list fields', () => {
+        const klass: ClassObject = {
+          id: 'GetUsers:output',
+          name: 'GetUsers',
+          inputs: [],
+          outputs: [
+            {
+              name: 'users',
+              type: { kind: GQLKind.Object, name: 'User', id: 'User:output', nullable: true },
+              isList: true,
+              selectedFields: ['name'],
+              fragmentSpreads: ['UserSummary'],
+            },
+          ],
+          isInput: false,
+          operation: 'Query',
+        };
+
+        parseResult.classes.set('User:output', {
+          id: 'User:output',
+          name: 'User',
+          inputs: [],
+          outputs: [createSimpleField('name', GQLKind.String)],
+          isInput: false,
+          shouldInline: true,
+          selectedOutputs: [createSimpleField('name', GQLKind.String)],
+        });
+        parseResult.fragments.set('UserSummary', {
+          id: 'UserSummary',
+          name: 'UserSummary',
+          typeName: 'User',
+          outputs: [createSimpleField('name', GQLKind.String)],
+        });
+
+        const result = prettify(renderClass(klass, parseResult));
+
+        expect(result).toContain('private users: MockUserSummaryFragmentBuilder[] | null = [];');
+        expect(result).toContain(
+          'havingUsers(users: MockUserSummaryFragmentBuilder[] | null): this {'
+        );
+      });
+
+      it('should render union fragment builder arrays with correct precedence for list fields', () => {
+        const klass: ClassObject = {
+          id: 'GetUsers:output',
+          name: 'GetUsers',
+          inputs: [],
+          outputs: [
+            {
+              name: 'users',
+              type: { kind: GQLKind.Object, name: 'User', id: 'User:output', nullable: false },
+              isList: true,
+              selectedFields: ['name', 'email'],
+              fragmentSpreads: ['UserSummary', 'UserContact'],
+            },
+          ],
+          isInput: false,
+          operation: 'Query',
+        };
+
+        parseResult.classes.set('User:output', {
+          id: 'User:output',
+          name: 'User',
+          inputs: [],
+          outputs: [
+            createSimpleField('name', GQLKind.String),
+            createSimpleField('email', GQLKind.String),
+          ],
+          isInput: false,
+          shouldInline: true,
+          selectedOutputs: [
+            createSimpleField('name', GQLKind.String),
+            createSimpleField('email', GQLKind.String),
+          ],
+        });
+        parseResult.fragments.set('UserSummary', {
+          id: 'UserSummary',
+          name: 'UserSummary',
+          typeName: 'User',
+          outputs: [createSimpleField('name', GQLKind.String)],
+        });
+        parseResult.fragments.set('UserContact', {
+          id: 'UserContact',
+          name: 'UserContact',
+          typeName: 'User',
+          outputs: [createSimpleField('email', GQLKind.String)],
+        });
+
+        const result = prettify(renderClass(klass, parseResult));
+
+        expect(result).toContain('private users: Array<');
+        expect(result).toContain('MockUserSummaryFragmentBuilder | MockUserContactFragmentBuilder');
+        expect(result).toContain('> = [];');
+        expect(result).not.toContain(
+          'MockUserSummaryFragmentBuilder | MockUserContactFragmentBuilder[]'
+        );
+      });
+
       it('should render mutation operation builder class', () => {
         const klass: ClassObject = {
           id: 'CreateUser:output',

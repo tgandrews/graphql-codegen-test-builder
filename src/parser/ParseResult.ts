@@ -1,9 +1,32 @@
-import { ClassObject, UnionObject } from './types';
-import { mergeClasses } from './merge';
+import { ClassObject, FragmentObject, UnionObject } from './types';
+import { mergeClasses, mergeFieldValuesByName } from './merge';
 import { Config } from '../types';
+
+function normalizeStringArray(values?: string[]): string[] | undefined {
+  if (!values?.length) {
+    return undefined;
+  }
+
+  return [...values].sort();
+}
+
+function normalizeFragmentOutputs(fragment: FragmentObject): string {
+  const normalizedOutputs = mergeFieldValuesByName(fragment.outputs)
+    .map((field) => ({
+      name: field.name,
+      type: field.type,
+      isList: field.isList,
+      selectedFields: normalizeStringArray(field.selectedFields),
+      fragmentSpreads: normalizeStringArray(field.fragmentSpreads),
+    }))
+    .sort((left, right) => left.name.localeCompare(right.name));
+
+  return JSON.stringify(normalizedOutputs);
+}
 
 export class ParseResult {
   classes: Map<string, ClassObject> = new Map();
+  fragments: Map<string, FragmentObject> = new Map();
   unions: Map<string, UnionObject> = new Map();
 
   constructor(private readonly config: Config) {}
@@ -41,9 +64,31 @@ export class ParseResult {
     return this;
   }
 
+  addFragment(fragment: Omit<FragmentObject, 'id'>): this {
+    const existingFragment = this.fragments.get(fragment.name);
+    if (!existingFragment) {
+      this.fragments.set(fragment.name, { ...fragment, id: fragment.name });
+      return this;
+    }
+
+    if (existingFragment.typeName !== fragment.typeName) {
+      throw new Error(`Conflicting fragments with the same name (${fragment.name})`);
+    }
+
+    const incomingFragment: FragmentObject = { ...fragment, id: fragment.name };
+    if (normalizeFragmentOutputs(existingFragment) !== normalizeFragmentOutputs(incomingFragment)) {
+      throw new Error(`Conflicting fragments with the same name (${fragment.name})`);
+    }
+
+    return this;
+  }
+
   merge(otherParseResult: ParseResult): this {
     for (const klass of otherParseResult.classes.values()) {
       this.addClass(klass);
+    }
+    for (const fragment of otherParseResult.fragments.values()) {
+      this.addFragment(fragment);
     }
     for (const union of otherParseResult.unions.values()) {
       this.addUnion(union);

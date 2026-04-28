@@ -1,4 +1,5 @@
 import { ClassObject, FieldValue, GQLKind, ParseResult } from '../parser';
+import { isFragmentBackedField } from './typeRenderer';
 
 function renderBuildReturnType(klass: ClassObject): string {
   if (!klass.operation) {
@@ -28,9 +29,36 @@ function renderOutputField(
     return `${field.name}: this.${[...parentPath, field.name].join('.')}`;
   }
 
+  const itemPath = [...parentPath, field.name].join('.');
+  if (isFragmentBackedField(field)) {
+    if (field.isList) {
+      if (field.type.nullable) {
+        return `${field.name}: this.${itemPath}?.map(item => ({
+      __typename: '${klass.name}',
+      ...item.build()
+    })) ?? null`;
+      }
+      return `${field.name}: this.${itemPath}.map(item => ({
+      __typename: '${klass.name}',
+      ...item.build()
+    }))`;
+    }
+
+    if (field.type.nullable) {
+      return `${field.name}: this.${itemPath} == null ? null : {
+      __typename: '${klass.name}',
+      ...this.${itemPath}.build()
+    }`;
+    }
+
+    return `${field.name}: {
+      __typename: '${klass.name}',
+      ...this.${itemPath}.build()
+    }`;
+  }
+
   // Handle arrays
   if (field.isList) {
-    const itemPath = [...parentPath, field.name].join('.');
     // For user-defined classes, map and extract fields
     if (klass.userDefined) {
       const fieldsToRender = selectedFieldsFilter
@@ -56,14 +84,17 @@ function renderOutputField(
   }
 
   if (klass.shouldInline) {
-    return `${field.name}: ${renderBuildObject(
+    const baseObject = renderBuildObject(
       klass,
       parseResult,
       [...parentPath, field.name],
       selectedFieldsFilter
-    )}`;
+    );
+    return `${field.name}: ${baseObject}`;
   }
-  return `${field.name}: this.${[...parentPath, field.name].join('.')}.build()`;
+
+  const builtValue = `this.${[...parentPath, field.name].join('.')}.build()`;
+  return `${field.name}: ${builtValue}`;
 }
 
 function renderBuildObject(

@@ -41,6 +41,7 @@ export type FieldValue = {
   name: string;
   isList?: boolean; // True if this field is a list/array
   selectedFields?: string[]; // For object types, the field names that were selected
+  fragmentSpreads?: string[]; // Named fragments directly spread onto this object field
 };
 
 export type ClassObject = {
@@ -61,4 +62,11 @@ export type ClassObject = {
 export type UnionObject = {
   name: string;
   subTypes: string[];
+};
+
+export type FragmentObject = {
+  id: string;
+  name: string;
+  typeName: string;
+  outputs: FieldValue[];
 };
