@@ -476,7 +476,7 @@ email: this.email
 
         const result = renderBuild(klass, parseResult);
 
-        expect(result).toContain("user: this.user == null ? null : {");
+        expect(result).toContain('user: this.user == null ? null : {');
         expect(result).toContain("__typename: 'User'");
         expect(result).toContain('...this.user.build()');
       });
@@ -517,7 +517,7 @@ email: this.email
 
         const result = renderBuild(klass, parseResult);
 
-        expect(result).toContain("users: this.users?.map(item => ({");
+        expect(result).toContain('users: this.users?.map(item => ({');
         expect(result).toContain('...item.build()');
         expect(result).toContain('})) ?? null');
       });
