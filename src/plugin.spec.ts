@@ -718,6 +718,102 @@ describe('plugin', () => {
         )
       );
     });
+
+    it('should compose direct selections with fragment spreads on the same field', async () => {
+      const schema = `
+        type Query {
+          me: User!
+        }
+
+        type User {
+          name: String!
+          email: String!
+        }
+      `;
+      const query = `
+        query GetUser {
+          me {
+            ...UserSummary
+            email
+          }
+        }
+
+        fragment UserSummary on User {
+          name
+        }
+      `;
+      const result = await runPlugin(query, schema);
+      expect(result).toEqual(
+        prettify(
+          `class MockUserSummaryFragmentBuilder {
+          private name: string = '';
+
+          havingName(name: string): this {
+            this.name = name;
+            return this;
+          }
+
+          build() {
+            return {
+              name: this.name,
+            } as const
+          }
+        }
+
+        type MockUserType = {
+          name: string;
+          email: string;
+        }
+
+        class MockGetUserMeSelectionBuilder {
+          private name: string = '';
+          private email: string = '';
+
+          havingName(name: string): this {
+            this.name = name;
+            return this;
+          }
+          havingEmail(email: string): this {
+            this.email = email;
+            return this;
+          }
+
+          build() {
+            return {
+              name: this.name,
+              email: this.email,
+            } as const
+          }
+        }
+
+        class MockGetUserQueryBuilder {
+          private me: MockGetUserMeSelectionBuilder = new MockGetUserMeSelectionBuilder();
+
+          havingMe(me: MockGetUserMeSelectionBuilder): this {
+            this.me = me;
+            return this;
+          }
+
+          build(): MockedResponse<GetUserQueryResponse, GetUserQueryVariables> {
+            return {
+              request: {
+                query: GetUserQueryDocument,
+              },
+              result: {
+                data: {
+                  __typename: 'Query',
+                  me: {
+                    __typename: 'User',
+                    ...this.me.build(),
+                  },
+                }
+              }
+            } as const
+          }
+        }`
+        )
+      );
+    });
   });
 
   describe('nullable fragment builder composition', () => {
