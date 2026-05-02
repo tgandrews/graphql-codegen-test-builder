@@ -22,6 +22,7 @@ import { GQLKind, GQLType, FieldValue, SimpleGQLType } from './types';
 import { ParseResult } from './ParseResult';
 import { mergeFieldValuesByName } from './merge';
 import { Config } from '../types';
+import { capitalise } from '../utils';
 
 type FragmentDefinitionMap = Map<string, FragmentDefinitionNode>;
 
@@ -132,7 +133,8 @@ function parseSelectionSet(
   schemaType: GraphQLObjectType,
   config: Config,
   fragmentDefinitions: FragmentDefinitionMap,
-  activeFragmentPath: string[] = []
+  activeFragmentPath: string[] = [],
+  selectionOwnerName = name
 ): SelectionParseResult {
   const parsedSelections = selections.reduce<SelectionParseResult>(
     (current, selection) => {
@@ -141,7 +143,8 @@ function parseSelectionSet(
         schemaType,
         config,
         fragmentDefinitions,
-        activeFragmentPath
+        activeFragmentPath,
+        selectionOwnerName
       );
       return {
         outputs: [...current.outputs, ...parsed.outputs],
@@ -180,7 +183,8 @@ function parseFieldSelection(
   schemaType: GraphQLObjectType,
   config: Config,
   fragmentDefinitions: FragmentDefinitionMap,
-  activeFragmentPath: string[] = []
+  activeFragmentPath: string[] = [],
+  selectionOwnerName = schemaType.name
 ): SelectionParseResult {
   if (node.kind !== Kind.FIELD) {
     throw new Error(`Unsupported field selection node type: ${node.kind}`);
@@ -219,20 +223,38 @@ function parseFieldSelection(
       fieldType,
       config,
       fragmentDefinitions,
-      activeFragmentPath
+      activeFragmentPath,
+      `${selectionOwnerName}${capitalise(fieldName)}`
     );
+    const shouldComposeFragments = result.fragmentSpreads.length > 1;
+    const selectionClassName = shouldComposeFragments
+      ? `${selectionOwnerName}${capitalise(fieldName)}Selection`
+      : typeName;
     const klass = result.result.classes.get(`${typeName}:output`);
+    if (shouldComposeFragments) {
+      result.result.addClass({
+        name: selectionClassName,
+        inputs: [],
+        outputs: result.outputs,
+        isInput: false,
+        isSelectionBuilder: true,
+      });
+    }
     const fieldValue: FieldValue = {
       name: fieldName,
       type: {
-        id: `${typeName}:output`,
-        name: typeName,
+        id: `${selectionClassName}:output`,
+        name: selectionClassName,
         kind: GQLKind.Object,
         nullable,
       },
       isList,
+      schemaTypeName: typeName,
       selectedFields: (klass?.selectedOutputs ?? klass?.outputs)?.map((f) => f.name) ?? [],
-      fragmentSpreads: result.fragmentSpreads.length > 0 ? result.fragmentSpreads : undefined,
+      fragmentSpreads:
+        !shouldComposeFragments && result.fragmentSpreads.length > 0
+          ? result.fragmentSpreads
+          : undefined,
     };
     return {
       outputs: [fieldValue],
@@ -308,11 +330,19 @@ function parseSelection(
   schemaType: GraphQLObjectType,
   config: Config,
   fragmentDefinitions: FragmentDefinitionMap,
-  activeFragmentPath: string[] = []
+  activeFragmentPath: string[] = [],
+  selectionOwnerName = schemaType.name
 ): SelectionParseResult {
   switch (node.kind) {
     case Kind.FIELD:
-      return parseFieldSelection(node, schemaType, config, fragmentDefinitions, activeFragmentPath);
+      return parseFieldSelection(
+        node,
+        schemaType,
+        config,
+        fragmentDefinitions,
+        activeFragmentPath,
+        selectionOwnerName
+      );
     case Kind.FRAGMENT_SPREAD:
     case Kind.INLINE_FRAGMENT:
       return parseFragmentSelection(
@@ -444,7 +474,7 @@ export function parseOperation(
     result: ParseResult;
   }>(
     ({ outputs, result }, selection) => {
-      const parsed = parseSelection(selection, schemaType, config, fragmentDefinitions);
+      const parsed = parseSelection(selection, schemaType, config, fragmentDefinitions, [], name);
       return {
         outputs: [...outputs, ...parsed.outputs],
         result: result.merge(parsed.result),
@@ -515,7 +545,8 @@ export function parseFragmentDefinition(
     schemaType,
     config,
     fragmentDefinitions,
-    currentFragmentPath
+    currentFragmentPath,
+    fragment.name.value
   );
   const klass = selectionResult.result.classes.get(`${typeName}:output`);
   if (!klass) {

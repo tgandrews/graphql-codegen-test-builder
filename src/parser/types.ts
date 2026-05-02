@@ -40,6 +40,7 @@ export type FieldValue = {
   type: GQLType;
   name: string;
   isList?: boolean; // True if this field is a list/array
+  schemaTypeName?: string; // The underlying GraphQL object type name for object fields
   selectedFields?: string[]; // For object types, the field names that were selected
   fragmentSpreads?: string[]; // Named fragments directly spread onto this object field
 };
@@ -52,6 +53,7 @@ export type ClassObject = {
   selectedOutputs?: FieldValue[]; // Fields actually selected across queries (only set when multiple queries)
   isInput: boolean;
   operation?: 'Query' | 'Mutation';
+  isSelectionBuilder?: boolean; // Synthetic builder for a concrete field selection
   // TODO: This is a rendering property so shouldn't really live here
   shouldInline?: boolean;
   isCompleteSchema?: boolean; // True if this represents all fields from the schema

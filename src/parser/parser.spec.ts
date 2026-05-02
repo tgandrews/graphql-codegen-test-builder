@@ -509,7 +509,7 @@ describe('parser', () => {
       expect(userType?.selectedOutputs?.map((field) => field.name)).toEqual(['name', 'email']);
     });
 
-    it('should not duplicate overlapping fields from multiple fragments', () => {
+    it('should compose multiple fragments on the same field into a synthetic selection builder', () => {
       const schema = buildSchema(`
         type Query {
           me: User!
@@ -541,9 +541,18 @@ describe('parser', () => {
 
       const operation = result.classes.get('GetUser:input');
       const meField = operation?.outputs.find((field) => field.name === 'me');
+      const selectionBuilder = result.classes.get('GetUserMeSelection:output');
       expect(operation?.outputs).toHaveLength(1);
-      expect(meField?.fragmentSpreads).toEqual(['UserSummary', 'UserContact']);
+      expect(meField?.type.kind).toBe(GQLKind.Object);
+      if (meField?.type.kind !== GQLKind.Object) {
+        throw new Error('Expected me field to be an object');
+      }
+      expect(meField.type.id).toBe('GetUserMeSelection:output');
+      expect(meField?.schemaTypeName).toBe('User');
+      expect(meField?.fragmentSpreads).toBeUndefined();
       expect(meField?.selectedFields).toEqual(['name', 'email']);
+      expect(selectionBuilder?.isSelectionBuilder).toBe(true);
+      expect(selectionBuilder?.outputs.map((field) => field.name)).toEqual(['name', 'email']);
     });
 
     it('should support fragment spreads inside fragment definitions', () => {

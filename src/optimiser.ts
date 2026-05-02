@@ -9,6 +9,9 @@ const inlineSmallClasses: OptimisingFn = (parseResult) => {
     if (klass.operation) {
       return;
     }
+    if (klass.isSelectionBuilder) {
+      return;
+    }
     // If it's a user-defined class, don't inline it (we'll import it instead)
     if (klass.userDefined) {
       return;

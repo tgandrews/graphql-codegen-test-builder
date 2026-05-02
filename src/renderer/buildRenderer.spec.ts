@@ -441,6 +441,47 @@ email: this.email
         expect(result).toContain('...item.build()');
       });
 
+      it('should build composed selection builders for multiple fragments on the same field', () => {
+        const klass: ClassObject = {
+          id: 'GetUser:output',
+          name: 'GetUser',
+          inputs: [],
+          outputs: [
+            {
+              name: 'user',
+              type: {
+                kind: GQLKind.Object,
+                name: 'GetUserUserSelection',
+                id: 'GetUserUserSelection:output',
+                nullable: false,
+              },
+              schemaTypeName: 'User',
+              selectedFields: ['name', 'email'],
+            },
+          ],
+          isInput: false,
+          operation: 'Query',
+        };
+
+        parseResult.classes.set('GetUserUserSelection:output', {
+          id: 'GetUserUserSelection:output',
+          name: 'GetUserUserSelection',
+          inputs: [],
+          outputs: [
+            createSimpleField('name', GQLKind.String),
+            createSimpleField('email', GQLKind.String),
+          ],
+          isInput: false,
+          isSelectionBuilder: true,
+        });
+
+        const result = renderBuild(klass, parseResult);
+
+        expect(result).toContain('user: {');
+        expect(result).toContain("__typename: 'User'");
+        expect(result).toContain('...this.user.build()');
+      });
+
       it('should build nullable fragment-backed singular object fields safely', () => {
         const klass: ClassObject = {
           id: 'GetUser:output',
