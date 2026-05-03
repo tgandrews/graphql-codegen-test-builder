@@ -1030,6 +1030,82 @@ describe('plugin', () => {
         )
       );
     });
+
+    it('should keep full defaults for singular user defined classes', async () => {
+      const schema = `
+        type Query {
+          me: User!
+        }
+
+        type User {
+          profile: Profile!
+        }
+
+        type Profile {
+          bio: String!
+          avatar: String!
+        }
+      `;
+      const query = `
+        query GetUser {
+          me {
+            profile {
+              bio
+            }
+          }
+        }
+      `;
+      const config: Partial<Config> = {
+        userDefinedClasses: {
+          Profile: { path: './profileModel', exportName: 'ProfileModel' },
+        },
+      };
+      const result = await runPlugin(query, schema, config);
+      expect(result).toEqual(
+        prettify(
+          `
+        import { ProfileModel } from './profileModel';
+
+        type MockUserType = {
+          profile: ProfileModel;
+        }
+
+        class MockGetUserQueryBuilder {
+          private me: MockUserType = {
+            profile: {
+              bio: '',
+              avatar: '',
+            },
+          };
+
+          havingMe(me: MockUserType): this {
+            this.me = me;
+            return this;
+          }
+
+          build(): MockedResponse<GetUserQueryResponse, GetUserQueryVariables> {
+            return {
+              request: {
+                query: GetUserQueryDocument,
+              },
+              result: {
+                data: {
+                  __typename: 'Query',
+                  me: {
+                    __typename: 'User',
+                    profile: {
+                      __typename: 'Profile',
+                      bio: this.me.profile.bio,
+                    },
+                  }
+                }
+              }
+            } as const
+          }
+        }`
+        )
+      );
+    });
   });
 
   it('should inline input objects when the configured threshold allows it', async () => {

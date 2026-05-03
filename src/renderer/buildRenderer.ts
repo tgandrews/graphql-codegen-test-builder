@@ -127,6 +127,16 @@ function renderOutputField(
     )})`;
   }
 
+  if (klass.userDefined) {
+    const baseObject = renderBuildObject(
+      klass,
+      parseResult,
+      [...parentPath, field.name],
+      selectedFieldsFilter
+    );
+    return `${field.name}: ${baseObject}`;
+  }
+
   if (klass.shouldInline) {
     const baseObject = renderBuildObject(
       klass,
