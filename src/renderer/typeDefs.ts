@@ -76,7 +76,7 @@ export const TYPE_DEFS: TypeDefMap = {
         throw new Error(`Unable to find reference to "${referencedTypeId}" from "${field.name}"`);
       }
       if (klass.userDefined || klass.shouldInline) {
-        const fieldsToRender = determineFieldsToRender(klass);
+        const fieldsToRender = klass.userDefined ? klass.outputs : determineFieldsToRender(klass);
         if (!renderDefaultValueFn) {
           throw new Error('renderDefaultValueFn is required for Object type');
         }

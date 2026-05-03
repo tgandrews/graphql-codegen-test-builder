@@ -108,7 +108,6 @@ describe('plugin', () => {
         prettify(
           `type MockUserType = {
           name: string;
-          age: number | null;
         }
 
         type MockCreateUserInputType = {
@@ -124,7 +123,6 @@ describe('plugin', () => {
 
           private createUser: MockUserType = {
             name: '',
-            age: null,
           };
 
           forInput(input: MockCreateUserInputType): this {
@@ -1032,5 +1030,403 @@ describe('plugin', () => {
         )
       );
     });
+
+    it('should keep full defaults for singular user defined classes', async () => {
+      const schema = `
+        type Query {
+          me: User!
+        }
+
+        type User {
+          profile: Profile!
+        }
+
+        type Profile {
+          bio: String!
+          avatar: String!
+        }
+      `;
+      const query = `
+        query GetUser {
+          me {
+            profile {
+              bio
+            }
+          }
+        }
+      `;
+      const config: Partial<Config> = {
+        userDefinedClasses: {
+          Profile: { path: './profileModel', exportName: 'ProfileModel' },
+        },
+      };
+      const result = await runPlugin(query, schema, config);
+      expect(result).toEqual(
+        prettify(
+          `
+        import { ProfileModel } from './profileModel';
+
+        type MockUserType = {
+          profile: ProfileModel;
+        }
+
+        class MockGetUserQueryBuilder {
+          private me: MockUserType = {
+            profile: {
+              bio: '',
+              avatar: '',
+            },
+          };
+
+          havingMe(me: MockUserType): this {
+            this.me = me;
+            return this;
+          }
+
+          build(): MockedResponse<GetUserQueryResponse, GetUserQueryVariables> {
+            return {
+              request: {
+                query: GetUserQueryDocument,
+              },
+              result: {
+                data: {
+                  __typename: 'Query',
+                  me: {
+                    __typename: 'User',
+                    profile: {
+                      __typename: 'Profile',
+                      bio: this.me.profile.bio,
+                    },
+                  }
+                }
+              }
+            } as const
+          }
+        }`
+        )
+      );
+    });
+  });
+
+  it('should inline input objects when the configured threshold allows it', async () => {
+    const schema = `
+      type Mutation {
+        createUser(input: CreateUserInput!): User!
+      }
+
+      input CreateUserInput {
+        name: String!
+        age: Int
+        email: String
+      }
+
+      type User {
+        name: String!
+      }
+    `;
+    const query = `
+      mutation CreateUser($input: CreateUserInput!) {
+        createUser(input: $input) {
+          name
+        }
+      }
+    `;
+    const result = await runPlugin(query, schema, { inlineFieldCountThreshold: 4 });
+    expect(result).toEqual(
+      prettify(
+        `type MockUserType = {
+        name: string;
+      }
+
+      type MockCreateUserInputType = {
+        name: string;
+        age: number | null;
+        email: string | null;
+      }
+
+      class MockCreateUserMutationBuilder {
+        private input: MockCreateUserInputType = {
+          name: '',
+          age: null,
+          email: null,
+        };
+
+        private createUser: MockUserType = {
+          name: '',
+        };
+
+        forInput(input: MockCreateUserInputType): this {
+          this.input = input;
+          return this;
+        }
+
+        havingCreateUser(createUser: MockUserType): this {
+          this.createUser = createUser;
+          return this;
+        }
+
+        build(): MockedResponse<CreateUserMutationResponse, CreateUserMutationVariables> {
+          return {
+            request: {
+              query: CreateUserMutationDocument,
+              variables: {
+                input: this.input,
+              }
+            },
+            result: {
+              data: {
+                __typename: 'Mutation',
+                createUser: {
+                  __typename: 'User',
+                  name: this.createUser.name,
+                }
+              }
+            }
+          } as const
+        }
+      }`
+      )
+    );
+  });
+
+  it('should inline three-field input objects by default', async () => {
+    const schema = `
+      type Mutation {
+        createUser(input: CreateUserInput!): User!
+      }
+
+      input CreateUserInput {
+        name: String!
+        age: Int
+        email: String
+      }
+
+      type User {
+        name: String!
+      }
+    `;
+    const query = `
+      mutation CreateUser($input: CreateUserInput!) {
+        createUser(input: $input) {
+          name
+        }
+      }
+    `;
+    const result = await runPlugin(query, schema);
+    expect(result).toEqual(
+      prettify(
+        `type MockUserType = {
+        name: string;
+      }
+
+      type MockCreateUserInputType = {
+        name: string;
+        age: number | null;
+        email: string | null;
+      }
+
+      class MockCreateUserMutationBuilder {
+        private input: MockCreateUserInputType = {
+          name: '',
+          age: null,
+          email: null,
+        };
+
+        private createUser: MockUserType = {
+          name: '',
+        };
+
+        forInput(input: MockCreateUserInputType): this {
+          this.input = input;
+          return this;
+        }
+
+        havingCreateUser(createUser: MockUserType): this {
+          this.createUser = createUser;
+          return this;
+        }
+
+        build(): MockedResponse<CreateUserMutationResponse, CreateUserMutationVariables> {
+          return {
+            request: {
+              query: CreateUserMutationDocument,
+              variables: {
+                input: this.input,
+              }
+            },
+            result: {
+              data: {
+                __typename: 'Mutation',
+                createUser: {
+                  __typename: 'User',
+                  name: this.createUser.name,
+                }
+              }
+            }
+          } as const
+        }
+      }`
+      )
+    );
+  });
+
+  it('should render input builders when the configured threshold does not inline them', async () => {
+    const schema = `
+      type Mutation {
+        createUser(input: CreateUserInput!): User!
+      }
+
+      input CreateUserInput {
+        name: String!
+        age: Int
+        email: String
+      }
+
+      type User {
+        name: String!
+      }
+    `;
+    const query = `
+      mutation CreateUser($input: CreateUserInput!) {
+        createUser(input: $input) {
+          name
+        }
+      }
+    `;
+    const result = await runPlugin(query, schema, { inlineFieldCountThreshold: 2 });
+    expect(result).toEqual(
+      prettify(
+        `type MockUserType = {
+        name: string;
+      }
+
+      class MockCreateUserInputBuilder {
+        private name: string = '';
+        private age: number | null = null;
+        private email: string | null = null;
+
+        forName(name: string): this {
+          this.name = name;
+          return this;
+        }
+        forAge(age: number | null): this {
+          this.age = age;
+          return this;
+        }
+        forEmail(email: string | null): this {
+          this.email = email;
+          return this;
+        }
+
+        build() {
+          return {
+            name: this.name,
+            age: this.age,
+            email: this.email,
+          } as const
+        }
+      }
+
+      class MockCreateUserMutationBuilder {
+        private input: MockCreateUserInputBuilder = new MockCreateUserInputBuilder();
+
+        private createUser: MockUserType = {
+          name: '',
+        };
+
+        forInput(input: MockCreateUserInputBuilder): this {
+          this.input = input;
+          return this;
+        }
+
+        havingCreateUser(createUser: MockUserType): this {
+          this.createUser = createUser;
+          return this;
+        }
+
+        build(): MockedResponse<CreateUserMutationResponse, CreateUserMutationVariables> {
+          return {
+            request: {
+              query: CreateUserMutationDocument,
+              variables: {
+                input: this.input.build(),
+              }
+            },
+            result: {
+              data: {
+                __typename: 'Mutation',
+                createUser: {
+                  __typename: 'User',
+                  name: this.createUser.name,
+                }
+              }
+            }
+          } as const
+        }
+      }`
+      )
+    );
+  });
+
+  it('should disable optimisation when configured', async () => {
+    const schema = `
+      type Query {
+        me: User!
+      }
+
+      type User {
+        name: String!
+      }
+    `;
+    const query = `
+      query GetUser {
+        me {
+          name
+        }
+      }
+    `;
+    const result = await runPlugin(query, schema, { enableOptimiser: false });
+    expect(result).toEqual(
+      prettify(
+        `class MockUserBuilder {
+        private name: string = '';
+
+        havingName(name: string): this {
+          this.name = name;
+          return this;
+        }
+
+        build() {
+          return {
+            __typename: 'User',
+            name: this.name,
+          } as const
+        }
+      }
+
+      class MockGetUserQueryBuilder {
+        private me: MockUserBuilder = new MockUserBuilder();
+
+        havingMe(me: MockUserBuilder): this {
+          this.me = me;
+          return this;
+        }
+
+        build(): MockedResponse<GetUserQueryResponse, GetUserQueryVariables> {
+          return {
+            request: {
+              query: GetUserQueryDocument,
+            },
+            result: {
+              data: {
+                __typename: 'Query',
+                me: this.me.build(),
+              }
+            }
+          } as const
+        }
+      }`
+      )
+    );
   });
 });
