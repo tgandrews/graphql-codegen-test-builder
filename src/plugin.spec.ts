@@ -14,28 +14,11 @@ const buildDocuments = (query: string) => {
   ];
 };
 
-const stripErrorModeMembers = (content: string): string =>
-  content
-    .replace(
-      /\n\s*private responseMode: 'success' \| 'networkError' = 'success';\n\s*private networkError: Error \| null = null;\n/g,
-      '\n'
-    )
-    .replace(
-      /\n\s*returningNetworkError\(error: Error = new Error\('Network error'\)\): this \{\n[\s\S]*?\n\s*\}\n/g,
-      '\n'
-    )
-    .replace(
-      /return \{\n([\s\S]*?)\n\s*\.\.\.\(this\.responseMode === 'networkError'[\s\S]*?\n\s*\.\.\.\(this\.responseMode === 'success' \? \{\n\s*result: \{\n\s*data: ([\s\S]*?)\n\s*\}\n\s*\} : \{\}\)\n\s*\} as const/g,
-      (_match, requestBlock, dataBlock) => {
-        return `return {\n${requestBlock}\n    result: {\n      data: ${dataBlock}\n    }\n  } as const`;
-      }
-    );
-
 const runPlugin = async (query: string, schemaString: string, config: Partial<Config> = {}) => {
   const schema = buildSchema(schemaString);
   const documents = buildDocuments(query);
   const result = await graphqlBuilderPlugin(schema, documents, config);
-  return prettify(stripErrorModeMembers(result.content));
+  return prettify(result.content);
 };
 
 const runPluginRaw = async (query: string, schemaString: string, config: Partial<Config> = {}) => {
@@ -93,41 +76,7 @@ describe('plugin', () => {
         }
       `;
       const result = await runPlugin(query, schema);
-      expect(result).toEqual(
-        prettify(
-          `type MockUserType = {
-          name: string;
-        }
-
-        class MockGetUserQueryBuilder {
-          private me: MockUserType = {
-            name: '',
-          };
-
-          havingMe(me: MockUserType): this {
-            this.me = me;
-            return this;
-          }
-
-          build(): MockedResponse<GetUserQueryResponse, GetUserQueryVariables> {
-            return {
-              request: {
-                query: GetUserQueryDocument,
-              },
-              result: {
-                data: {
-                  __typename: 'Query',
-                  me: {
-                    __typename: 'User',
-                    name: this.me.name,
-                  }
-                }
-              }
-            } as const
-          }
-        }`
-        )
-      );
+      expect(result).toMatchSnapshot();
     });
   });
 
@@ -156,59 +105,7 @@ describe('plugin', () => {
         }
       `;
       const result = await runPlugin(query, schema);
-      expect(result).toEqual(
-        prettify(
-          `type MockUserType = {
-          name: string;
-        }
-
-        type MockCreateUserInputType = {
-          name: string;
-          age: number | null;
-        }
-
-        class MockCreateUserMutationBuilder {
-          private input: MockCreateUserInputType = {
-            name: '',
-            age: null,
-          };
-
-          private createUser: MockUserType = {
-            name: '',
-          };
-
-          forInput(input: MockCreateUserInputType): this {
-            this.input = input;
-            return this;
-          }
-
-          havingCreateUser(createUser: MockUserType): this {
-            this.createUser = createUser;
-            return this;
-          }
-
-          build(): MockedResponse<CreateUserMutationResponse, CreateUserMutationVariables> {
-            return {
-              request: {
-                query: CreateUserMutationDocument,
-                variables: {
-                  input: this.input,
-                }
-              },
-              result: {
-                data: {
-                  __typename: 'Mutation',
-                  createUser: {
-                    __typename: 'User',
-                    name: this.createUser.name,
-                  }
-                }
-              }
-            } as const
-          }
-        }`
-        )
-      );
+      expect(result).toMatchSnapshot();
     });
   });
 
@@ -235,48 +132,7 @@ describe('plugin', () => {
         }
       `;
       const result = await runPlugin(query, schema);
-      expect(result).toEqual(
-        prettify(
-          `
-        type MockUserType = {
-          name: string;
-          age: number | null;
-          email: string | null;
-        }
-
-        class MockGetUserQueryBuilder {
-          private me: MockUserType = {
-            name: '',
-            age: null,
-            email: null,
-          };
-
-          havingMe(me: MockUserType): this {
-            this.me = me;
-            return this;
-          }
-
-          build(): MockedResponse<GetUserQueryResponse, GetUserQueryVariables> {
-            return {
-              request: {
-                query: GetUserQueryDocument,
-              },
-              result: {
-                data: {
-                  __typename: 'Query',
-                  me: {
-                    __typename: 'User',
-                    name: this.me.name,
-                    age: this.me.age,
-                    email: this.me.email,
-                  }
-                }
-              }
-            } as const
-          }
-        }`
-        )
-      );
+      expect(result).toMatchSnapshot();
     });
   });
 
@@ -307,75 +163,7 @@ describe('plugin', () => {
         }
       `;
       const result = await runPlugin(query, schema);
-      expect(result).toEqual(
-        prettify(
-          `
-        type MockUserType = {
-          name: string;
-          email: string;
-        }
-
-        type GetUserNameUserType = Pick<MockUserType, "name">;
-
-        class MockGetUserNameQueryBuilder {
-          private me: GetUserNameUserType = {
-            name: '',
-          };
-
-          havingMe(me: GetUserNameUserType): this {
-            this.me = me;
-            return this;
-          }
-
-          build(): MockedResponse<GetUserNameQueryResponse, GetUserNameQueryVariables> {
-            return {
-              request: {
-                query: GetUserNameQueryDocument,
-              },
-              result: {
-                data: {
-                  __typename: 'Query',
-                  me: {
-                    __typename: 'User',
-                    name: this.me.name,
-                  }
-                }
-              }
-            } as const
-          }
-        }
-
-        type GetUserEmailUserType = Pick<MockUserType, "email">;
-
-        class MockGetUserEmailQueryBuilder {
-          private me: GetUserEmailUserType = {
-            email: '',
-          };
-
-          havingMe(me: GetUserEmailUserType): this {
-            this.me = me;
-            return this;
-          }
-
-          build(): MockedResponse<GetUserEmailQueryResponse, GetUserEmailQueryVariables> {
-            return {
-              request: {
-                query: GetUserEmailQueryDocument,
-              },
-              result: {
-                data: {
-                  __typename: 'Query',
-                  me: {
-                    __typename: 'User',
-                    email: this.me.email,
-                  }
-                }
-              }
-            } as const
-          }
-        }`
-        )
-      );
+      expect(result).toMatchSnapshot();
     });
   });
 
@@ -421,101 +209,7 @@ describe('plugin', () => {
         }
       `;
       const result = await runPlugin(query, schema);
-      expect(result).toEqual(
-        prettify(
-          `type MockUserType = {
-          id: string;
-          name: string;
-          active: boolean;
-          score: number;
-          age: number;
-        }
-
-        class MockGetUserQueryBuilder {
-          private me: MockUserType = {
-            id: '',
-            name: '',
-            active: false,
-            score: 0.0,
-            age: 0,
-          };
-
-          havingMe(me: MockUserType): this {
-            this.me = me;
-            return this;
-          }
-
-          build(): MockedResponse<GetUserQueryResponse, GetUserQueryVariables> {
-            return {
-              request: {
-                query: GetUserQueryDocument,
-              },
-              result: {
-                data: {
-                  __typename: 'Query',
-                  me: {
-                    __typename: 'User',
-                    id: this.me.id,
-                    name: this.me.name,
-                    active: this.me.active,
-                    score: this.me.score,
-                    age: this.me.age,
-                  }
-                }
-              }
-            } as const
-          }
-        }
-
-        type MockDeleteUserInputType = {
-          id: string;
-          soft: boolean | null;
-        }
-
-        type DeleteUserUserType = Pick<MockUserType, "id">;
-
-        class MockDeleteUserMutationBuilder {
-          private input: MockDeleteUserInputType = {
-            id: '',
-            soft: null,
-          };
-
-          private deleteUser: DeleteUserUserType = {
-            id: '',
-          };
-
-          forInput(input: MockDeleteUserInputType): this {
-            this.input = input;
-            return this;
-          }
-
-          havingDeleteUser(deleteUser: DeleteUserUserType): this {
-            this.deleteUser = deleteUser;
-            return this;
-          }
-
-          build(): MockedResponse<DeleteUserMutationResponse, DeleteUserMutationVariables> {
-            return {
-              request: {
-                query: DeleteUserMutationDocument,
-                variables: {
-                  input: this.input,
-                }
-              },
-              result: {
-                data: {
-                  __typename: 'Mutation',
-                  deleteUser: {
-                    __typename: 'User',
-                    id: this.deleteUser.id,
-                  }
-                }
-              }
-            } as const
-          }
-        }`
-        )
-      );
+      expect(result).toMatchSnapshot();
     });
   });
 
@@ -538,36 +232,7 @@ describe('plugin', () => {
         }
       `;
       const result = await runPlugin(query, schema);
-      expect(result).toEqual(
-        prettify(
-          `class MockUserSummaryFragmentBuilder {
-          private name: string = '';
-
-          private email: string = '';
-
-          havingName(name: string): this {
-            this.name = name;
-            return this;
-          }
-          havingEmail(email: string): this {
-            this.email = email;
-            return this;
-          }
-
-          build() {
-            return {
-              name: this.name,
-              email: this.email,
-            } as const
-          }
-        }
-
-        type MockUserType = {
-          name: string;
-          email: string;
-        }`
-        )
-      );
+      expect(result).toMatchSnapshot();
     });
   });
 
@@ -596,62 +261,7 @@ describe('plugin', () => {
         }
       `;
       const result = await runPlugin(query, schema);
-      expect(result).toEqual(
-        prettify(
-          `class MockUserSummaryFragmentBuilder {
-          private name: string = '';
-
-          private email: string = '';
-
-          havingName(name: string): this {
-            this.name = name;
-            return this;
-          }
-          havingEmail(email: string): this {
-            this.email = email;
-            return this;
-          }
-
-          build() {
-            return {
-              name: this.name,
-              email: this.email,
-            } as const
-          }
-        }
-
-        type MockUserType = {
-          name: string;
-          email: string;
-        }
-
-        class MockGetUserQueryBuilder {
-          private me: MockUserSummaryFragmentBuilder = new MockUserSummaryFragmentBuilder();
-
-          havingMe(me: MockUserSummaryFragmentBuilder): this {
-            this.me = me;
-            return this;
-          }
-
-          build(): MockedResponse<GetUserQueryResponse, GetUserQueryVariables> {
-            return {
-              request: {
-                query: GetUserQueryDocument,
-              },
-              result: {
-                data: {
-                  __typename: 'Query',
-                  me: {
-                    __typename: 'User',
-                    ...this.me.build(),
-                  },
-                }
-              }
-            } as const
-          }
-        }`
-        )
-      );
+      expect(result).toMatchSnapshot();
     });
 
     it('should compose multiple fragment spreads on the same field into a single builder', async () => {
@@ -682,91 +292,7 @@ describe('plugin', () => {
         }
       `;
       const result = await runPlugin(query, schema);
-      expect(result).toEqual(
-        prettify(
-          `class MockUserSummaryFragmentBuilder {
-          private name: string = '';
-
-          havingName(name: string): this {
-            this.name = name;
-            return this;
-          }
-
-          build() {
-            return {
-              name: this.name,
-            } as const
-          }
-        }
-
-        class MockUserContactFragmentBuilder {
-          private email: string = '';
-
-          havingEmail(email: string): this {
-            this.email = email;
-            return this;
-          }
-
-          build() {
-            return {
-              email: this.email,
-            } as const
-          }
-        }
-
-        type MockUserType = {
-          name: string;
-          email: string;
-        }
-
-        class MockGetUserMeSelectionBuilder {
-          private name: string = '';
-          private email: string = '';
-
-          havingName(name: string): this {
-            this.name = name;
-            return this;
-          }
-          havingEmail(email: string): this {
-            this.email = email;
-            return this;
-          }
-
-          build() {
-            return {
-              name: this.name,
-              email: this.email,
-            } as const
-          }
-        }
-
-        class MockGetUserQueryBuilder {
-          private me: MockGetUserMeSelectionBuilder = new MockGetUserMeSelectionBuilder();
-
-          havingMe(me: MockGetUserMeSelectionBuilder): this {
-            this.me = me;
-            return this;
-          }
-
-          build(): MockedResponse<GetUserQueryResponse, GetUserQueryVariables> {
-            return {
-              request: {
-                query: GetUserQueryDocument,
-              },
-              result: {
-                data: {
-                  __typename: 'Query',
-                  me: {
-                    __typename: 'User',
-                    ...this.me.build(),
-                  },
-                }
-              }
-            } as const
-          }
-        }`
-        )
-      );
+      expect(result).toMatchSnapshot();
     });
 
     it('should compose direct selections with fragment spreads on the same field', async () => {
@@ -793,76 +319,7 @@ describe('plugin', () => {
         }
       `;
       const result = await runPlugin(query, schema);
-      expect(result).toEqual(
-        prettify(
-          `class MockUserSummaryFragmentBuilder {
-          private name: string = '';
-
-          havingName(name: string): this {
-            this.name = name;
-            return this;
-          }
-
-          build() {
-            return {
-              name: this.name,
-            } as const
-          }
-        }
-
-        type MockUserType = {
-          name: string;
-          email: string;
-        }
-
-        class MockGetUserMeSelectionBuilder {
-          private name: string = '';
-          private email: string = '';
-
-          havingName(name: string): this {
-            this.name = name;
-            return this;
-          }
-          havingEmail(email: string): this {
-            this.email = email;
-            return this;
-          }
-
-          build() {
-            return {
-              name: this.name,
-              email: this.email,
-            } as const
-          }
-        }
-
-        class MockGetUserQueryBuilder {
-          private me: MockGetUserMeSelectionBuilder = new MockGetUserMeSelectionBuilder();
-
-          havingMe(me: MockGetUserMeSelectionBuilder): this {
-            this.me = me;
-            return this;
-          }
-
-          build(): MockedResponse<GetUserQueryResponse, GetUserQueryVariables> {
-            return {
-              request: {
-                query: GetUserQueryDocument,
-              },
-              result: {
-                data: {
-                  __typename: 'Query',
-                  me: {
-                    __typename: 'User',
-                    ...this.me.build(),
-                  },
-                }
-              }
-            } as const
-          }
-        }`
-        )
-      );
+      expect(result).toMatchSnapshot();
     });
   });
 
@@ -889,54 +346,7 @@ describe('plugin', () => {
         }
       `;
       const result = await runPlugin(query, schema);
-      expect(result).toEqual(
-        prettify(
-          `class MockUserSummaryFragmentBuilder {
-          private name: string = '';
-
-          havingName(name: string): this {
-            this.name = name;
-            return this;
-          }
-
-          build() {
-            return {
-              name: this.name,
-            } as const
-          }
-        }
-
-        type MockUserType = {
-          name: string;
-        }
-
-        class MockGetUserQueryBuilder {
-          private me: MockUserSummaryFragmentBuilder | null = new MockUserSummaryFragmentBuilder();
-
-          havingMe(me: MockUserSummaryFragmentBuilder | null): this {
-            this.me = me;
-            return this;
-          }
-
-          build(): MockedResponse<GetUserQueryResponse, GetUserQueryVariables> {
-            return {
-              request: {
-                query: GetUserQueryDocument,
-              },
-              result: {
-                data: {
-                  __typename: 'Query',
-                  me: this.me == null ? null : {
-                    __typename: 'User',
-                    ...this.me.build(),
-                  },
-                }
-              }
-            } as const
-          }
-        }`
-        )
-      );
+      expect(result).toMatchSnapshot();
     });
   });
 
@@ -963,54 +373,7 @@ describe('plugin', () => {
         }
       `;
       const result = await runPlugin(query, schema);
-      expect(result).toEqual(
-        prettify(
-          `class MockUserSummaryFragmentBuilder {
-          private name: string = '';
-
-          havingName(name: string): this {
-            this.name = name;
-            return this;
-          }
-
-          build() {
-            return {
-              name: this.name,
-            } as const
-          }
-        }
-
-        type MockUserType = {
-          name: string;
-        }
-
-        class MockGetUsersQueryBuilder {
-          private users: MockUserSummaryFragmentBuilder[] = [];
-
-          havingUsers(users: MockUserSummaryFragmentBuilder[]): this {
-            this.users = users;
-            return this;
-          }
-
-          build(): MockedResponse<GetUsersQueryResponse, GetUsersQueryVariables> {
-            return {
-              request: {
-                query: GetUsersQueryDocument,
-              },
-              result: {
-                data: {
-                  __typename: 'Query',
-                  users: this.users.map(item => ({
-                    __typename: 'User',
-                    ...item.build(),
-                  })),
-                }
-              }
-            } as const
-          }
-        }`
-        )
-      );
+      expect(result).toMatchSnapshot();
     });
   });
 
@@ -1046,41 +409,7 @@ describe('plugin', () => {
         },
       };
       const result = await runPlugin(query, schema, config);
-      expect(result).toEqual(
-        prettify(
-          `
-        import { MockUserType } from './userModel';
-
-        class MockGetUsersQueryBuilder {
-          private users: MockUserType[] = [];
-
-          havingUsers(users: MockUserType[]): this {
-            this.users = users;
-            return this;
-          }
-
-          build(): MockedResponse<GetUsersQueryResponse, GetUsersQueryVariables> {
-            return {
-              request: {
-                query: GetUsersQueryDocument,
-              },
-              result: {
-                data: {
-                  __typename: 'Query',
-                  users: this.users.map(item => ({
-                    __typename: 'User',
-                    name: item.name,
-                    age: item.age,
-                    deletedAt: item.deletedAt,
-                    otherField: item.otherField,
-                  })),
-                }
-              }
-            } as const
-          }
-        }`
-        )
-      );
+      expect(result).toMatchSnapshot();
     });
 
     it('should keep full defaults for singular user defined classes', async () => {
@@ -1113,50 +442,7 @@ describe('plugin', () => {
         },
       };
       const result = await runPlugin(query, schema, config);
-      expect(result).toEqual(
-        prettify(
-          `
-        import { ProfileModel } from './profileModel';
-
-        type MockUserType = {
-          profile: ProfileModel;
-        }
-
-        class MockGetUserQueryBuilder {
-          private me: MockUserType = {
-            profile: {
-              bio: '',
-              avatar: '',
-            },
-          };
-
-          havingMe(me: MockUserType): this {
-            this.me = me;
-            return this;
-          }
-
-          build(): MockedResponse<GetUserQueryResponse, GetUserQueryVariables> {
-            return {
-              request: {
-                query: GetUserQueryDocument,
-              },
-              result: {
-                data: {
-                  __typename: 'Query',
-                  me: {
-                    __typename: 'User',
-                    profile: {
-                      __typename: 'Profile',
-                      bio: this.me.profile.bio,
-                    },
-                  }
-                }
-              }
-            } as const
-          }
-        }`
-        )
-      );
+      expect(result).toMatchSnapshot();
     });
   });
 
@@ -1184,61 +470,7 @@ describe('plugin', () => {
       }
     `;
     const result = await runPlugin(query, schema, { inlineFieldCountThreshold: 4 });
-    expect(result).toEqual(
-      prettify(
-        `type MockUserType = {
-        name: string;
-      }
-
-      type MockCreateUserInputType = {
-        name: string;
-        age: number | null;
-        email: string | null;
-      }
-
-      class MockCreateUserMutationBuilder {
-        private input: MockCreateUserInputType = {
-          name: '',
-          age: null,
-          email: null,
-        };
-
-        private createUser: MockUserType = {
-          name: '',
-        };
-
-        forInput(input: MockCreateUserInputType): this {
-          this.input = input;
-          return this;
-        }
-
-        havingCreateUser(createUser: MockUserType): this {
-          this.createUser = createUser;
-          return this;
-        }
-
-        build(): MockedResponse<CreateUserMutationResponse, CreateUserMutationVariables> {
-          return {
-            request: {
-              query: CreateUserMutationDocument,
-              variables: {
-                input: this.input,
-              }
-            },
-            result: {
-              data: {
-                __typename: 'Mutation',
-                createUser: {
-                  __typename: 'User',
-                  name: this.createUser.name,
-                }
-              }
-            }
-          } as const
-        }
-      }`
-      )
-    );
+    expect(result).toMatchSnapshot();
   });
 
   it('should inline three-field input objects by default', async () => {
@@ -1265,61 +497,7 @@ describe('plugin', () => {
       }
     `;
     const result = await runPlugin(query, schema);
-    expect(result).toEqual(
-      prettify(
-        `type MockUserType = {
-        name: string;
-      }
-
-      type MockCreateUserInputType = {
-        name: string;
-        age: number | null;
-        email: string | null;
-      }
-
-      class MockCreateUserMutationBuilder {
-        private input: MockCreateUserInputType = {
-          name: '',
-          age: null,
-          email: null,
-        };
-
-        private createUser: MockUserType = {
-          name: '',
-        };
-
-        forInput(input: MockCreateUserInputType): this {
-          this.input = input;
-          return this;
-        }
-
-        havingCreateUser(createUser: MockUserType): this {
-          this.createUser = createUser;
-          return this;
-        }
-
-        build(): MockedResponse<CreateUserMutationResponse, CreateUserMutationVariables> {
-          return {
-            request: {
-              query: CreateUserMutationDocument,
-              variables: {
-                input: this.input,
-              }
-            },
-            result: {
-              data: {
-                __typename: 'Mutation',
-                createUser: {
-                  __typename: 'User',
-                  name: this.createUser.name,
-                }
-              }
-            }
-          } as const
-        }
-      }`
-      )
-    );
+    expect(result).toMatchSnapshot();
   });
 
   it('should render input builders when the configured threshold does not inline them', async () => {
@@ -1346,78 +524,7 @@ describe('plugin', () => {
       }
     `;
     const result = await runPlugin(query, schema, { inlineFieldCountThreshold: 2 });
-    expect(result).toEqual(
-      prettify(
-        `type MockUserType = {
-        name: string;
-      }
-
-      class MockCreateUserInputBuilder {
-        private name: string = '';
-        private age: number | null = null;
-        private email: string | null = null;
-
-        forName(name: string): this {
-          this.name = name;
-          return this;
-        }
-        forAge(age: number | null): this {
-          this.age = age;
-          return this;
-        }
-        forEmail(email: string | null): this {
-          this.email = email;
-          return this;
-        }
-
-        build() {
-          return {
-            name: this.name,
-            age: this.age,
-            email: this.email,
-          } as const
-        }
-      }
-
-      class MockCreateUserMutationBuilder {
-        private input: MockCreateUserInputBuilder = new MockCreateUserInputBuilder();
-
-        private createUser: MockUserType = {
-          name: '',
-        };
-
-        forInput(input: MockCreateUserInputBuilder): this {
-          this.input = input;
-          return this;
-        }
-
-        havingCreateUser(createUser: MockUserType): this {
-          this.createUser = createUser;
-          return this;
-        }
-
-        build(): MockedResponse<CreateUserMutationResponse, CreateUserMutationVariables> {
-          return {
-            request: {
-              query: CreateUserMutationDocument,
-              variables: {
-                input: this.input.build(),
-              }
-            },
-            result: {
-              data: {
-                __typename: 'Mutation',
-                createUser: {
-                  __typename: 'User',
-                  name: this.createUser.name,
-                }
-              }
-            }
-          } as const
-        }
-      }`
-      )
-    );
+    expect(result).toMatchSnapshot();
   });
 
   it('should disable optimisation when configured', async () => {
@@ -1438,47 +545,6 @@ describe('plugin', () => {
       }
     `;
     const result = await runPlugin(query, schema, { enableOptimiser: false });
-    expect(result).toEqual(
-      prettify(
-        `class MockUserBuilder {
-        private name: string = '';
-
-        havingName(name: string): this {
-          this.name = name;
-          return this;
-        }
-
-        build() {
-          return {
-            __typename: 'User',
-            name: this.name,
-          } as const
-        }
-      }
-
-      class MockGetUserQueryBuilder {
-        private me: MockUserBuilder = new MockUserBuilder();
-
-        havingMe(me: MockUserBuilder): this {
-          this.me = me;
-          return this;
-        }
-
-        build(): MockedResponse<GetUserQueryResponse, GetUserQueryVariables> {
-          return {
-            request: {
-              query: GetUserQueryDocument,
-            },
-            result: {
-              data: {
-                __typename: 'Query',
-                me: this.me.build(),
-              }
-            }
-          } as const
-        }
-      }`
-      )
-    );
+    expect(result).toMatchSnapshot();
   });
 });
