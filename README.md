@@ -3,6 +3,39 @@
 ## What it does
 `graphql-codegen-builder` is a GraphQL Code Generator plugin that generates typed mock builders from your GraphQL operations for test usage. The generated code provides `forX(...)` setters for operation inputs, `havingX(...)` setters for response fields, and `build()` methods that return mock objects shaped for operation documents plus typed variables and responses.
 
+## Test usage example
+Generated builders are designed to produce `MockedResponse` objects for test setup. This example uses Apollo Client's `MockedProvider`.
+
+```ts
+import { MockedProvider, MockedResponse } from '@apollo/client/testing';
+import { render, screen } from '@testing-library/react';
+import { UserCard } from './UserCard';
+import { MockGetUserQueryBuilder } from '../generated/graphql';
+
+it('renders the user name from a mocked query response', async () => {
+  const mock = new MockGetUserQueryBuilder()
+    .forId('user-1')
+    .havingUser({ name: 'Ada Lovelace' })
+    .build();
+
+  const mocks: MockedResponse[] = [mock];
+
+  render(
+    <MockedProvider mocks={mocks}>
+      <UserCard id="user-1" />
+    </MockedProvider>
+  );
+
+  expect(await screen.findByText('Ada Lovelace')).toBeInTheDocument();
+});
+```
+
+What this demonstrates:
+
+- `forX(...)` sets operation variables.
+- `havingX(...)` sets response payload fields.
+- `.build()` returns a `MockedResponse`-shaped object ready for Apollo tests.
+
 ## Installation
 ```bash
 npm i graphql-codegen-builder
@@ -55,77 +88,15 @@ export default config;
 ```
 
 ## Generated output deep dive
-Given this operation:
+If you want to see the generated code anatomy behind the test usage, continue below.
 
-```graphql
-mutation CreateUser($input: CreateUserInput!) {
-  createUser(input: $input) {
-    name
-  }
-}
-```
+Generated output is covered in detail in the scenario docs under [`examples/`](./examples/README.md):
 
-You get generated artifacts in three main parts:
-
-1. Type aliases for inlineable object/input shapes.
-2. Builder classes for operations and non-inline object types.
-3. `build()` methods that return `MockedResponse<...>` with `request` and `result` sections.
-
-Representative generated output (simplified to highlight shape):
-
-```ts
-type MockCreateUserInputType = {
-  name: string;
-  age: number | null;
-};
-
-type MockUserType = {
-  name: string;
-  age: number | null;
-};
-
-class MockCreateUserMutationBuilder {
-  private input: MockCreateUserInputType = {
-    name: '',
-    age: null,
-  };
-
-  private createUser: MockUserType = {
-    name: '',
-    age: null,
-  };
-
-  forInput(input: MockCreateUserInputType): this {
-    this.input = input;
-    return this;
-  }
-
-  havingCreateUser(createUser: MockUserType): this {
-    this.createUser = createUser;
-    return this;
-  }
-
-  build(): MockedResponse<CreateUserMutationResponse, CreateUserMutationVariables> {
-    return {
-      request: {
-        query: CreateUserMutationDocument,
-        variables: {
-          input: this.input,
-        },
-      },
-      result: {
-        data: {
-          __typename: 'Mutation',
-          createUser: {
-            __typename: 'User',
-            name: this.createUser.name,
-          },
-        },
-      },
-    } as const;
-  }
-}
-```
+- [Basic query](./examples/basic-query.md)
+- [Mutation with variables](./examples/mutation-with-variables.md)
+- [Multiple operations with shared types](./examples/multi-operation-shared-type.md)
+- [Using `userDefinedClasses`](./examples/user-defined-classes.md)
+- [Limitations: custom scalars and subscriptions](./examples/limitations-custom-scalars.md)
 
 Naming conventions:
 
