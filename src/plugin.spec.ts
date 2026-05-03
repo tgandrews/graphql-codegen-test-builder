@@ -21,13 +21,6 @@ const runPlugin = async (query: string, schemaString: string, config: Partial<Co
   return prettify(result.content);
 };
 
-const runPluginRaw = async (query: string, schemaString: string, config: Partial<Config> = {}) => {
-  const schema = buildSchema(schemaString);
-  const documents = buildDocuments(query);
-  const result = await graphqlBuilderPlugin(schema, documents, config);
-  return prettify(result.content);
-};
-
 describe('plugin', () => {
   describe('error mode builders', () => {
     it('should generate returningNetworkError with network error build mode', async () => {
@@ -48,15 +41,8 @@ describe('plugin', () => {
         }
       `;
 
-      const result = await runPluginRaw(query, schema);
-      expect(result).toContain(
-        'type GraphQLErrorLike = { message: string; [key: string]: unknown };'
-      );
-      expect(result).toContain(
-        'returningNetworkError(error: Error = new Error("Network error")): this'
-      );
-      expect(result).toContain('this.responseMode = "networkError"');
-      expect(result).toContain('...(this.responseMode === "networkError"');
+      const result = await runPlugin(query, schema);
+      expect(result).toMatchSnapshot();
     });
 
     it('should generate returningServiceError with includeData toggle', async () => {
@@ -77,13 +63,8 @@ describe('plugin', () => {
         }
       `;
 
-      const result = await runPluginRaw(query, schema);
-      expect(result).toContain('returningServiceError(');
-      expect(result).toContain('errors: readonly GraphQLErrorLike[] | string');
-      expect(result).toContain('this.serviceErrors =');
-      expect(result).toContain('typeof errors === "string" ? [{ message: errors }] : errors');
-      expect(result).toContain('this.includeServiceData = options.includeData ?? true');
-      expect(result).toContain('...(this.includeServiceData');
+      const result = await runPlugin(query, schema);
+      expect(result).toMatchSnapshot();
     });
   });
 

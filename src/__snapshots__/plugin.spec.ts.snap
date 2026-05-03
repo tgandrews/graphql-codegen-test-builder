@@ -18,8 +18,13 @@ class MockGetUserQueryBuilder {
     age: 0,
   };
 
-  private responseMode: "success" | "networkError" = "success";
+  private responseMode: "success" | "networkError" | "serviceError" = "success";
   private networkError: Error | null = null;
+  private serviceErrors: readonly {
+    message: string;
+    [key: string]: unknown;
+  }[] = [];
+  private includeServiceData = true;
 
   havingMe(me: MockUserType): this {
     this.me = me;
@@ -32,6 +37,17 @@ class MockGetUserQueryBuilder {
     return this;
   }
 
+  returningServiceError(
+    errors: readonly { message: string; [key: string]: unknown }[] | string,
+    options: { includeData?: boolean } = {}
+  ): this {
+    this.responseMode = "serviceError";
+    this.serviceErrors =
+      typeof errors === "string" ? [{ message: errors }] : errors;
+    this.includeServiceData = options.includeData ?? true;
+    return this;
+  }
+
   build(): MockedResponse<GetUserQueryResponse, GetUserQueryVariables> {
     return {
       request: {
@@ -39,6 +55,28 @@ class MockGetUserQueryBuilder {
       },
       ...(this.responseMode === "networkError"
         ? { error: this.networkError ?? new Error("Network error") }
+        : {}),
+      ...(this.responseMode === "serviceError"
+        ? {
+            result: {
+              errors: this.serviceErrors,
+              ...(this.includeServiceData
+                ? {
+                    data: {
+                      __typename: "Query",
+                      me: {
+                        __typename: "User",
+                        id: this.me.id,
+                        name: this.me.name,
+                        active: this.me.active,
+                        score: this.me.score,
+                        age: this.me.age,
+                      },
+                    },
+                  }
+                : {}),
+            },
+          }
         : {}),
       ...(this.responseMode === "success"
         ? {
@@ -78,8 +116,13 @@ class MockDeleteUserMutationBuilder {
     id: "",
   };
 
-  private responseMode: "success" | "networkError" = "success";
+  private responseMode: "success" | "networkError" | "serviceError" = "success";
   private networkError: Error | null = null;
+  private serviceErrors: readonly {
+    message: string;
+    [key: string]: unknown;
+  }[] = [];
+  private includeServiceData = true;
 
   forInput(input: MockDeleteUserInputType): this {
     this.input = input;
@@ -97,6 +140,17 @@ class MockDeleteUserMutationBuilder {
     return this;
   }
 
+  returningServiceError(
+    errors: readonly { message: string; [key: string]: unknown }[] | string,
+    options: { includeData?: boolean } = {}
+  ): this {
+    this.responseMode = "serviceError";
+    this.serviceErrors =
+      typeof errors === "string" ? [{ message: errors }] : errors;
+    this.includeServiceData = options.includeData ?? true;
+    return this;
+  }
+
   build(): MockedResponse<
     DeleteUserMutationResponse,
     DeleteUserMutationVariables
@@ -111,6 +165,24 @@ class MockDeleteUserMutationBuilder {
       ...(this.responseMode === "networkError"
         ? { error: this.networkError ?? new Error("Network error") }
         : {}),
+      ...(this.responseMode === "serviceError"
+        ? {
+            result: {
+              errors: this.serviceErrors,
+              ...(this.includeServiceData
+                ? {
+                    data: {
+                      __typename: "Mutation",
+                      deleteUser: {
+                        __typename: "User",
+                        id: this.deleteUser.id,
+                      },
+                    },
+                  }
+                : {}),
+            },
+          }
+        : {}),
       ...(this.responseMode === "success"
         ? {
             result: {
@@ -119,6 +191,176 @@ class MockDeleteUserMutationBuilder {
                 deleteUser: {
                   __typename: "User",
                   id: this.deleteUser.id,
+                },
+              },
+            },
+          }
+        : {}),
+    } as const;
+  }
+}
+"
+`;
+
+exports[`plugin error mode builders should generate returningNetworkError with network error build mode 1`] = `
+"type MockUserType = {
+  name: string;
+};
+
+class MockGetUserQueryBuilder {
+  private me: MockUserType = {
+    name: "",
+  };
+
+  private responseMode: "success" | "networkError" | "serviceError" = "success";
+  private networkError: Error | null = null;
+  private serviceErrors: readonly {
+    message: string;
+    [key: string]: unknown;
+  }[] = [];
+  private includeServiceData = true;
+
+  havingMe(me: MockUserType): this {
+    this.me = me;
+    return this;
+  }
+
+  returningNetworkError(error: Error = new Error("Network error")): this {
+    this.responseMode = "networkError";
+    this.networkError = error;
+    return this;
+  }
+
+  returningServiceError(
+    errors: readonly { message: string; [key: string]: unknown }[] | string,
+    options: { includeData?: boolean } = {}
+  ): this {
+    this.responseMode = "serviceError";
+    this.serviceErrors =
+      typeof errors === "string" ? [{ message: errors }] : errors;
+    this.includeServiceData = options.includeData ?? true;
+    return this;
+  }
+
+  build(): MockedResponse<GetUserQueryResponse, GetUserQueryVariables> {
+    return {
+      request: {
+        query: GetUserQueryDocument,
+      },
+      ...(this.responseMode === "networkError"
+        ? { error: this.networkError ?? new Error("Network error") }
+        : {}),
+      ...(this.responseMode === "serviceError"
+        ? {
+            result: {
+              errors: this.serviceErrors,
+              ...(this.includeServiceData
+                ? {
+                    data: {
+                      __typename: "Query",
+                      me: {
+                        __typename: "User",
+                        name: this.me.name,
+                      },
+                    },
+                  }
+                : {}),
+            },
+          }
+        : {}),
+      ...(this.responseMode === "success"
+        ? {
+            result: {
+              data: {
+                __typename: "Query",
+                me: {
+                  __typename: "User",
+                  name: this.me.name,
+                },
+              },
+            },
+          }
+        : {}),
+    } as const;
+  }
+}
+"
+`;
+
+exports[`plugin error mode builders should generate returningServiceError with includeData toggle 1`] = `
+"type MockUserType = {
+  name: string;
+};
+
+class MockGetUserQueryBuilder {
+  private me: MockUserType = {
+    name: "",
+  };
+
+  private responseMode: "success" | "networkError" | "serviceError" = "success";
+  private networkError: Error | null = null;
+  private serviceErrors: readonly {
+    message: string;
+    [key: string]: unknown;
+  }[] = [];
+  private includeServiceData = true;
+
+  havingMe(me: MockUserType): this {
+    this.me = me;
+    return this;
+  }
+
+  returningNetworkError(error: Error = new Error("Network error")): this {
+    this.responseMode = "networkError";
+    this.networkError = error;
+    return this;
+  }
+
+  returningServiceError(
+    errors: readonly { message: string; [key: string]: unknown }[] | string,
+    options: { includeData?: boolean } = {}
+  ): this {
+    this.responseMode = "serviceError";
+    this.serviceErrors =
+      typeof errors === "string" ? [{ message: errors }] : errors;
+    this.includeServiceData = options.includeData ?? true;
+    return this;
+  }
+
+  build(): MockedResponse<GetUserQueryResponse, GetUserQueryVariables> {
+    return {
+      request: {
+        query: GetUserQueryDocument,
+      },
+      ...(this.responseMode === "networkError"
+        ? { error: this.networkError ?? new Error("Network error") }
+        : {}),
+      ...(this.responseMode === "serviceError"
+        ? {
+            result: {
+              errors: this.serviceErrors,
+              ...(this.includeServiceData
+                ? {
+                    data: {
+                      __typename: "Query",
+                      me: {
+                        __typename: "User",
+                        name: this.me.name,
+                      },
+                    },
+                  }
+                : {}),
+            },
+          }
+        : {}),
+      ...(this.responseMode === "success"
+        ? {
+            result: {
+              data: {
+                __typename: "Query",
+                me: {
+                  __typename: "User",
+                  name: this.me.name,
                 },
               },
             },
@@ -162,8 +404,13 @@ class MockGetUserQueryBuilder {
   private me: MockUserSummaryFragmentBuilder =
     new MockUserSummaryFragmentBuilder();
 
-  private responseMode: "success" | "networkError" = "success";
+  private responseMode: "success" | "networkError" | "serviceError" = "success";
   private networkError: Error | null = null;
+  private serviceErrors: readonly {
+    message: string;
+    [key: string]: unknown;
+  }[] = [];
+  private includeServiceData = true;
 
   havingMe(me: MockUserSummaryFragmentBuilder): this {
     this.me = me;
@@ -176,6 +423,17 @@ class MockGetUserQueryBuilder {
     return this;
   }
 
+  returningServiceError(
+    errors: readonly { message: string; [key: string]: unknown }[] | string,
+    options: { includeData?: boolean } = {}
+  ): this {
+    this.responseMode = "serviceError";
+    this.serviceErrors =
+      typeof errors === "string" ? [{ message: errors }] : errors;
+    this.includeServiceData = options.includeData ?? true;
+    return this;
+  }
+
   build(): MockedResponse<GetUserQueryResponse, GetUserQueryVariables> {
     return {
       request: {
@@ -183,6 +441,24 @@ class MockGetUserQueryBuilder {
       },
       ...(this.responseMode === "networkError"
         ? { error: this.networkError ?? new Error("Network error") }
+        : {}),
+      ...(this.responseMode === "serviceError"
+        ? {
+            result: {
+              errors: this.serviceErrors,
+              ...(this.includeServiceData
+                ? {
+                    data: {
+                      __typename: "Query",
+                      me: {
+                        __typename: "User",
+                        ...this.me.build(),
+                      },
+                    },
+                  }
+                : {}),
+            },
+          }
         : {}),
       ...(this.responseMode === "success"
         ? {
@@ -249,8 +525,13 @@ class MockGetUserQueryBuilder {
   private me: MockGetUserMeSelectionBuilder =
     new MockGetUserMeSelectionBuilder();
 
-  private responseMode: "success" | "networkError" = "success";
+  private responseMode: "success" | "networkError" | "serviceError" = "success";
   private networkError: Error | null = null;
+  private serviceErrors: readonly {
+    message: string;
+    [key: string]: unknown;
+  }[] = [];
+  private includeServiceData = true;
 
   havingMe(me: MockGetUserMeSelectionBuilder): this {
     this.me = me;
@@ -263,6 +544,17 @@ class MockGetUserQueryBuilder {
     return this;
   }
 
+  returningServiceError(
+    errors: readonly { message: string; [key: string]: unknown }[] | string,
+    options: { includeData?: boolean } = {}
+  ): this {
+    this.responseMode = "serviceError";
+    this.serviceErrors =
+      typeof errors === "string" ? [{ message: errors }] : errors;
+    this.includeServiceData = options.includeData ?? true;
+    return this;
+  }
+
   build(): MockedResponse<GetUserQueryResponse, GetUserQueryVariables> {
     return {
       request: {
@@ -270,6 +562,24 @@ class MockGetUserQueryBuilder {
       },
       ...(this.responseMode === "networkError"
         ? { error: this.networkError ?? new Error("Network error") }
+        : {}),
+      ...(this.responseMode === "serviceError"
+        ? {
+            result: {
+              errors: this.serviceErrors,
+              ...(this.includeServiceData
+                ? {
+                    data: {
+                      __typename: "Query",
+                      me: {
+                        __typename: "User",
+                        ...this.me.build(),
+                      },
+                    },
+                  }
+                : {}),
+            },
+          }
         : {}),
       ...(this.responseMode === "success"
         ? {
@@ -351,8 +661,13 @@ class MockGetUserQueryBuilder {
   private me: MockGetUserMeSelectionBuilder =
     new MockGetUserMeSelectionBuilder();
 
-  private responseMode: "success" | "networkError" = "success";
+  private responseMode: "success" | "networkError" | "serviceError" = "success";
   private networkError: Error | null = null;
+  private serviceErrors: readonly {
+    message: string;
+    [key: string]: unknown;
+  }[] = [];
+  private includeServiceData = true;
 
   havingMe(me: MockGetUserMeSelectionBuilder): this {
     this.me = me;
@@ -365,6 +680,17 @@ class MockGetUserQueryBuilder {
     return this;
   }
 
+  returningServiceError(
+    errors: readonly { message: string; [key: string]: unknown }[] | string,
+    options: { includeData?: boolean } = {}
+  ): this {
+    this.responseMode = "serviceError";
+    this.serviceErrors =
+      typeof errors === "string" ? [{ message: errors }] : errors;
+    this.includeServiceData = options.includeData ?? true;
+    return this;
+  }
+
   build(): MockedResponse<GetUserQueryResponse, GetUserQueryVariables> {
     return {
       request: {
@@ -372,6 +698,24 @@ class MockGetUserQueryBuilder {
       },
       ...(this.responseMode === "networkError"
         ? { error: this.networkError ?? new Error("Network error") }
+        : {}),
+      ...(this.responseMode === "serviceError"
+        ? {
+            result: {
+              errors: this.serviceErrors,
+              ...(this.includeServiceData
+                ? {
+                    data: {
+                      __typename: "Query",
+                      me: {
+                        __typename: "User",
+                        ...this.me.build(),
+                      },
+                    },
+                  }
+                : {}),
+            },
+          }
         : {}),
       ...(this.responseMode === "success"
         ? {
@@ -415,8 +759,13 @@ type MockUserType = {
 class MockGetUsersQueryBuilder {
   private users: MockUserSummaryFragmentBuilder[] = [];
 
-  private responseMode: "success" | "networkError" = "success";
+  private responseMode: "success" | "networkError" | "serviceError" = "success";
   private networkError: Error | null = null;
+  private serviceErrors: readonly {
+    message: string;
+    [key: string]: unknown;
+  }[] = [];
+  private includeServiceData = true;
 
   havingUsers(users: MockUserSummaryFragmentBuilder[]): this {
     this.users = users;
@@ -429,6 +778,17 @@ class MockGetUsersQueryBuilder {
     return this;
   }
 
+  returningServiceError(
+    errors: readonly { message: string; [key: string]: unknown }[] | string,
+    options: { includeData?: boolean } = {}
+  ): this {
+    this.responseMode = "serviceError";
+    this.serviceErrors =
+      typeof errors === "string" ? [{ message: errors }] : errors;
+    this.includeServiceData = options.includeData ?? true;
+    return this;
+  }
+
   build(): MockedResponse<GetUsersQueryResponse, GetUsersQueryVariables> {
     return {
       request: {
@@ -436,6 +796,24 @@ class MockGetUsersQueryBuilder {
       },
       ...(this.responseMode === "networkError"
         ? { error: this.networkError ?? new Error("Network error") }
+        : {}),
+      ...(this.responseMode === "serviceError"
+        ? {
+            result: {
+              errors: this.serviceErrors,
+              ...(this.includeServiceData
+                ? {
+                    data: {
+                      __typename: "Query",
+                      users: this.users.map((item) => ({
+                        __typename: "User",
+                        ...item.build(),
+                      })),
+                    },
+                  }
+                : {}),
+            },
+          }
         : {}),
       ...(this.responseMode === "success"
         ? {
@@ -470,8 +848,13 @@ class MockGetUserQueryBuilder {
     email: null,
   };
 
-  private responseMode: "success" | "networkError" = "success";
+  private responseMode: "success" | "networkError" | "serviceError" = "success";
   private networkError: Error | null = null;
+  private serviceErrors: readonly {
+    message: string;
+    [key: string]: unknown;
+  }[] = [];
+  private includeServiceData = true;
 
   havingMe(me: MockUserType): this {
     this.me = me;
@@ -484,6 +867,17 @@ class MockGetUserQueryBuilder {
     return this;
   }
 
+  returningServiceError(
+    errors: readonly { message: string; [key: string]: unknown }[] | string,
+    options: { includeData?: boolean } = {}
+  ): this {
+    this.responseMode = "serviceError";
+    this.serviceErrors =
+      typeof errors === "string" ? [{ message: errors }] : errors;
+    this.includeServiceData = options.includeData ?? true;
+    return this;
+  }
+
   build(): MockedResponse<GetUserQueryResponse, GetUserQueryVariables> {
     return {
       request: {
@@ -491,6 +885,26 @@ class MockGetUserQueryBuilder {
       },
       ...(this.responseMode === "networkError"
         ? { error: this.networkError ?? new Error("Network error") }
+        : {}),
+      ...(this.responseMode === "serviceError"
+        ? {
+            result: {
+              errors: this.serviceErrors,
+              ...(this.includeServiceData
+                ? {
+                    data: {
+                      __typename: "Query",
+                      me: {
+                        __typename: "User",
+                        name: this.me.name,
+                        age: this.me.age,
+                        email: this.me.email,
+                      },
+                    },
+                  }
+                : {}),
+            },
+          }
         : {}),
       ...(this.responseMode === "success"
         ? {
@@ -533,8 +947,13 @@ class MockCreateUserMutationBuilder {
     name: "",
   };
 
-  private responseMode: "success" | "networkError" = "success";
+  private responseMode: "success" | "networkError" | "serviceError" = "success";
   private networkError: Error | null = null;
+  private serviceErrors: readonly {
+    message: string;
+    [key: string]: unknown;
+  }[] = [];
+  private includeServiceData = true;
 
   forInput(input: MockCreateUserInputType): this {
     this.input = input;
@@ -552,6 +971,17 @@ class MockCreateUserMutationBuilder {
     return this;
   }
 
+  returningServiceError(
+    errors: readonly { message: string; [key: string]: unknown }[] | string,
+    options: { includeData?: boolean } = {}
+  ): this {
+    this.responseMode = "serviceError";
+    this.serviceErrors =
+      typeof errors === "string" ? [{ message: errors }] : errors;
+    this.includeServiceData = options.includeData ?? true;
+    return this;
+  }
+
   build(): MockedResponse<
     CreateUserMutationResponse,
     CreateUserMutationVariables
@@ -565,6 +995,24 @@ class MockCreateUserMutationBuilder {
       },
       ...(this.responseMode === "networkError"
         ? { error: this.networkError ?? new Error("Network error") }
+        : {}),
+      ...(this.responseMode === "serviceError"
+        ? {
+            result: {
+              errors: this.serviceErrors,
+              ...(this.includeServiceData
+                ? {
+                    data: {
+                      __typename: "Mutation",
+                      createUser: {
+                        __typename: "User",
+                        name: this.createUser.name,
+                      },
+                    },
+                  }
+                : {}),
+            },
+          }
         : {}),
       ...(this.responseMode === "success"
         ? {
@@ -609,8 +1057,13 @@ class MockGetUserQueryBuilder {
   private me: MockUserSummaryFragmentBuilder | null =
     new MockUserSummaryFragmentBuilder();
 
-  private responseMode: "success" | "networkError" = "success";
+  private responseMode: "success" | "networkError" | "serviceError" = "success";
   private networkError: Error | null = null;
+  private serviceErrors: readonly {
+    message: string;
+    [key: string]: unknown;
+  }[] = [];
+  private includeServiceData = true;
 
   havingMe(me: MockUserSummaryFragmentBuilder | null): this {
     this.me = me;
@@ -623,6 +1076,17 @@ class MockGetUserQueryBuilder {
     return this;
   }
 
+  returningServiceError(
+    errors: readonly { message: string; [key: string]: unknown }[] | string,
+    options: { includeData?: boolean } = {}
+  ): this {
+    this.responseMode = "serviceError";
+    this.serviceErrors =
+      typeof errors === "string" ? [{ message: errors }] : errors;
+    this.includeServiceData = options.includeData ?? true;
+    return this;
+  }
+
   build(): MockedResponse<GetUserQueryResponse, GetUserQueryVariables> {
     return {
       request: {
@@ -630,6 +1094,27 @@ class MockGetUserQueryBuilder {
       },
       ...(this.responseMode === "networkError"
         ? { error: this.networkError ?? new Error("Network error") }
+        : {}),
+      ...(this.responseMode === "serviceError"
+        ? {
+            result: {
+              errors: this.serviceErrors,
+              ...(this.includeServiceData
+                ? {
+                    data: {
+                      __typename: "Query",
+                      me:
+                        this.me == null
+                          ? null
+                          : {
+                              __typename: "User",
+                              ...this.me.build(),
+                            },
+                    },
+                  }
+                : {}),
+            },
+          }
         : {}),
       ...(this.responseMode === "success"
         ? {
@@ -663,8 +1148,13 @@ class MockGetUserQueryBuilder {
     name: "",
   };
 
-  private responseMode: "success" | "networkError" = "success";
+  private responseMode: "success" | "networkError" | "serviceError" = "success";
   private networkError: Error | null = null;
+  private serviceErrors: readonly {
+    message: string;
+    [key: string]: unknown;
+  }[] = [];
+  private includeServiceData = true;
 
   havingMe(me: MockUserType): this {
     this.me = me;
@@ -677,6 +1167,17 @@ class MockGetUserQueryBuilder {
     return this;
   }
 
+  returningServiceError(
+    errors: readonly { message: string; [key: string]: unknown }[] | string,
+    options: { includeData?: boolean } = {}
+  ): this {
+    this.responseMode = "serviceError";
+    this.serviceErrors =
+      typeof errors === "string" ? [{ message: errors }] : errors;
+    this.includeServiceData = options.includeData ?? true;
+    return this;
+  }
+
   build(): MockedResponse<GetUserQueryResponse, GetUserQueryVariables> {
     return {
       request: {
@@ -684,6 +1185,24 @@ class MockGetUserQueryBuilder {
       },
       ...(this.responseMode === "networkError"
         ? { error: this.networkError ?? new Error("Network error") }
+        : {}),
+      ...(this.responseMode === "serviceError"
+        ? {
+            result: {
+              errors: this.serviceErrors,
+              ...(this.includeServiceData
+                ? {
+                    data: {
+                      __typename: "Query",
+                      me: {
+                        __typename: "User",
+                        name: this.me.name,
+                      },
+                    },
+                  }
+                : {}),
+            },
+          }
         : {}),
       ...(this.responseMode === "success"
         ? {
@@ -717,8 +1236,13 @@ class MockGetUserNameQueryBuilder {
     name: "",
   };
 
-  private responseMode: "success" | "networkError" = "success";
+  private responseMode: "success" | "networkError" | "serviceError" = "success";
   private networkError: Error | null = null;
+  private serviceErrors: readonly {
+    message: string;
+    [key: string]: unknown;
+  }[] = [];
+  private includeServiceData = true;
 
   havingMe(me: GetUserNameUserType): this {
     this.me = me;
@@ -731,6 +1255,17 @@ class MockGetUserNameQueryBuilder {
     return this;
   }
 
+  returningServiceError(
+    errors: readonly { message: string; [key: string]: unknown }[] | string,
+    options: { includeData?: boolean } = {}
+  ): this {
+    this.responseMode = "serviceError";
+    this.serviceErrors =
+      typeof errors === "string" ? [{ message: errors }] : errors;
+    this.includeServiceData = options.includeData ?? true;
+    return this;
+  }
+
   build(): MockedResponse<GetUserNameQueryResponse, GetUserNameQueryVariables> {
     return {
       request: {
@@ -738,6 +1273,24 @@ class MockGetUserNameQueryBuilder {
       },
       ...(this.responseMode === "networkError"
         ? { error: this.networkError ?? new Error("Network error") }
+        : {}),
+      ...(this.responseMode === "serviceError"
+        ? {
+            result: {
+              errors: this.serviceErrors,
+              ...(this.includeServiceData
+                ? {
+                    data: {
+                      __typename: "Query",
+                      me: {
+                        __typename: "User",
+                        name: this.me.name,
+                      },
+                    },
+                  }
+                : {}),
+            },
+          }
         : {}),
       ...(this.responseMode === "success"
         ? {
@@ -763,8 +1316,13 @@ class MockGetUserEmailQueryBuilder {
     email: "",
   };
 
-  private responseMode: "success" | "networkError" = "success";
+  private responseMode: "success" | "networkError" | "serviceError" = "success";
   private networkError: Error | null = null;
+  private serviceErrors: readonly {
+    message: string;
+    [key: string]: unknown;
+  }[] = [];
+  private includeServiceData = true;
 
   havingMe(me: GetUserEmailUserType): this {
     this.me = me;
@@ -774,6 +1332,17 @@ class MockGetUserEmailQueryBuilder {
   returningNetworkError(error: Error = new Error("Network error")): this {
     this.responseMode = "networkError";
     this.networkError = error;
+    return this;
+  }
+
+  returningServiceError(
+    errors: readonly { message: string; [key: string]: unknown }[] | string,
+    options: { includeData?: boolean } = {}
+  ): this {
+    this.responseMode = "serviceError";
+    this.serviceErrors =
+      typeof errors === "string" ? [{ message: errors }] : errors;
+    this.includeServiceData = options.includeData ?? true;
     return this;
   }
 
@@ -787,6 +1356,24 @@ class MockGetUserEmailQueryBuilder {
       },
       ...(this.responseMode === "networkError"
         ? { error: this.networkError ?? new Error("Network error") }
+        : {}),
+      ...(this.responseMode === "serviceError"
+        ? {
+            result: {
+              errors: this.serviceErrors,
+              ...(this.includeServiceData
+                ? {
+                    data: {
+                      __typename: "Query",
+                      me: {
+                        __typename: "User",
+                        email: this.me.email,
+                      },
+                    },
+                  }
+                : {}),
+            },
+          }
         : {}),
       ...(this.responseMode === "success"
         ? {
@@ -827,8 +1414,13 @@ exports[`plugin should disable optimisation when configured 1`] = `
 class MockGetUserQueryBuilder {
   private me: MockUserBuilder = new MockUserBuilder();
 
-  private responseMode: "success" | "networkError" = "success";
+  private responseMode: "success" | "networkError" | "serviceError" = "success";
   private networkError: Error | null = null;
+  private serviceErrors: readonly {
+    message: string;
+    [key: string]: unknown;
+  }[] = [];
+  private includeServiceData = true;
 
   havingMe(me: MockUserBuilder): this {
     this.me = me;
@@ -841,6 +1433,17 @@ class MockGetUserQueryBuilder {
     return this;
   }
 
+  returningServiceError(
+    errors: readonly { message: string; [key: string]: unknown }[] | string,
+    options: { includeData?: boolean } = {}
+  ): this {
+    this.responseMode = "serviceError";
+    this.serviceErrors =
+      typeof errors === "string" ? [{ message: errors }] : errors;
+    this.includeServiceData = options.includeData ?? true;
+    return this;
+  }
+
   build(): MockedResponse<GetUserQueryResponse, GetUserQueryVariables> {
     return {
       request: {
@@ -848,6 +1451,21 @@ class MockGetUserQueryBuilder {
       },
       ...(this.responseMode === "networkError"
         ? { error: this.networkError ?? new Error("Network error") }
+        : {}),
+      ...(this.responseMode === "serviceError"
+        ? {
+            result: {
+              errors: this.serviceErrors,
+              ...(this.includeServiceData
+                ? {
+                    data: {
+                      __typename: "Query",
+                      me: this.me.build(),
+                    },
+                  }
+                : {}),
+            },
+          }
         : {}),
       ...(this.responseMode === "success"
         ? {
@@ -887,8 +1505,13 @@ class MockCreateUserMutationBuilder {
     name: "",
   };
 
-  private responseMode: "success" | "networkError" = "success";
+  private responseMode: "success" | "networkError" | "serviceError" = "success";
   private networkError: Error | null = null;
+  private serviceErrors: readonly {
+    message: string;
+    [key: string]: unknown;
+  }[] = [];
+  private includeServiceData = true;
 
   forInput(input: MockCreateUserInputType): this {
     this.input = input;
@@ -906,6 +1529,17 @@ class MockCreateUserMutationBuilder {
     return this;
   }
 
+  returningServiceError(
+    errors: readonly { message: string; [key: string]: unknown }[] | string,
+    options: { includeData?: boolean } = {}
+  ): this {
+    this.responseMode = "serviceError";
+    this.serviceErrors =
+      typeof errors === "string" ? [{ message: errors }] : errors;
+    this.includeServiceData = options.includeData ?? true;
+    return this;
+  }
+
   build(): MockedResponse<
     CreateUserMutationResponse,
     CreateUserMutationVariables
@@ -919,6 +1553,24 @@ class MockCreateUserMutationBuilder {
       },
       ...(this.responseMode === "networkError"
         ? { error: this.networkError ?? new Error("Network error") }
+        : {}),
+      ...(this.responseMode === "serviceError"
+        ? {
+            result: {
+              errors: this.serviceErrors,
+              ...(this.includeServiceData
+                ? {
+                    data: {
+                      __typename: "Mutation",
+                      createUser: {
+                        __typename: "User",
+                        name: this.createUser.name,
+                      },
+                    },
+                  }
+                : {}),
+            },
+          }
         : {}),
       ...(this.responseMode === "success"
         ? {
@@ -961,8 +1613,13 @@ class MockCreateUserMutationBuilder {
     name: "",
   };
 
-  private responseMode: "success" | "networkError" = "success";
+  private responseMode: "success" | "networkError" | "serviceError" = "success";
   private networkError: Error | null = null;
+  private serviceErrors: readonly {
+    message: string;
+    [key: string]: unknown;
+  }[] = [];
+  private includeServiceData = true;
 
   forInput(input: MockCreateUserInputType): this {
     this.input = input;
@@ -980,6 +1637,17 @@ class MockCreateUserMutationBuilder {
     return this;
   }
 
+  returningServiceError(
+    errors: readonly { message: string; [key: string]: unknown }[] | string,
+    options: { includeData?: boolean } = {}
+  ): this {
+    this.responseMode = "serviceError";
+    this.serviceErrors =
+      typeof errors === "string" ? [{ message: errors }] : errors;
+    this.includeServiceData = options.includeData ?? true;
+    return this;
+  }
+
   build(): MockedResponse<
     CreateUserMutationResponse,
     CreateUserMutationVariables
@@ -993,6 +1661,24 @@ class MockCreateUserMutationBuilder {
       },
       ...(this.responseMode === "networkError"
         ? { error: this.networkError ?? new Error("Network error") }
+        : {}),
+      ...(this.responseMode === "serviceError"
+        ? {
+            result: {
+              errors: this.serviceErrors,
+              ...(this.includeServiceData
+                ? {
+                    data: {
+                      __typename: "Mutation",
+                      createUser: {
+                        __typename: "User",
+                        name: this.createUser.name,
+                      },
+                    },
+                  }
+                : {}),
+            },
+          }
         : {}),
       ...(this.responseMode === "success"
         ? {
@@ -1052,8 +1738,13 @@ class MockCreateUserMutationBuilder {
     name: "",
   };
 
-  private responseMode: "success" | "networkError" = "success";
+  private responseMode: "success" | "networkError" | "serviceError" = "success";
   private networkError: Error | null = null;
+  private serviceErrors: readonly {
+    message: string;
+    [key: string]: unknown;
+  }[] = [];
+  private includeServiceData = true;
 
   forInput(input: MockCreateUserInputBuilder): this {
     this.input = input;
@@ -1071,6 +1762,17 @@ class MockCreateUserMutationBuilder {
     return this;
   }
 
+  returningServiceError(
+    errors: readonly { message: string; [key: string]: unknown }[] | string,
+    options: { includeData?: boolean } = {}
+  ): this {
+    this.responseMode = "serviceError";
+    this.serviceErrors =
+      typeof errors === "string" ? [{ message: errors }] : errors;
+    this.includeServiceData = options.includeData ?? true;
+    return this;
+  }
+
   build(): MockedResponse<
     CreateUserMutationResponse,
     CreateUserMutationVariables
@@ -1084,6 +1786,24 @@ class MockCreateUserMutationBuilder {
       },
       ...(this.responseMode === "networkError"
         ? { error: this.networkError ?? new Error("Network error") }
+        : {}),
+      ...(this.responseMode === "serviceError"
+        ? {
+            result: {
+              errors: this.serviceErrors,
+              ...(this.includeServiceData
+                ? {
+                    data: {
+                      __typename: "Mutation",
+                      createUser: {
+                        __typename: "User",
+                        name: this.createUser.name,
+                      },
+                    },
+                  }
+                : {}),
+            },
+          }
         : {}),
       ...(this.responseMode === "success"
         ? {
@@ -1149,8 +1869,13 @@ class MockGetUserQueryBuilder {
     },
   };
 
-  private responseMode: "success" | "networkError" = "success";
+  private responseMode: "success" | "networkError" | "serviceError" = "success";
   private networkError: Error | null = null;
+  private serviceErrors: readonly {
+    message: string;
+    [key: string]: unknown;
+  }[] = [];
+  private includeServiceData = true;
 
   havingMe(me: MockUserType): this {
     this.me = me;
@@ -1163,6 +1888,17 @@ class MockGetUserQueryBuilder {
     return this;
   }
 
+  returningServiceError(
+    errors: readonly { message: string; [key: string]: unknown }[] | string,
+    options: { includeData?: boolean } = {}
+  ): this {
+    this.responseMode = "serviceError";
+    this.serviceErrors =
+      typeof errors === "string" ? [{ message: errors }] : errors;
+    this.includeServiceData = options.includeData ?? true;
+    return this;
+  }
+
   build(): MockedResponse<GetUserQueryResponse, GetUserQueryVariables> {
     return {
       request: {
@@ -1170,6 +1906,27 @@ class MockGetUserQueryBuilder {
       },
       ...(this.responseMode === "networkError"
         ? { error: this.networkError ?? new Error("Network error") }
+        : {}),
+      ...(this.responseMode === "serviceError"
+        ? {
+            result: {
+              errors: this.serviceErrors,
+              ...(this.includeServiceData
+                ? {
+                    data: {
+                      __typename: "Query",
+                      me: {
+                        __typename: "User",
+                        profile: {
+                          __typename: "Profile",
+                          bio: this.me.profile.bio,
+                        },
+                      },
+                    },
+                  }
+                : {}),
+            },
+          }
         : {}),
       ...(this.responseMode === "success"
         ? {
@@ -1199,8 +1956,13 @@ exports[`plugin user defined classes should support user defined classes with a 
 class MockGetUsersQueryBuilder {
   private users: MockUserType[] = [];
 
-  private responseMode: "success" | "networkError" = "success";
+  private responseMode: "success" | "networkError" | "serviceError" = "success";
   private networkError: Error | null = null;
+  private serviceErrors: readonly {
+    message: string;
+    [key: string]: unknown;
+  }[] = [];
+  private includeServiceData = true;
 
   havingUsers(users: MockUserType[]): this {
     this.users = users;
@@ -1213,6 +1975,17 @@ class MockGetUsersQueryBuilder {
     return this;
   }
 
+  returningServiceError(
+    errors: readonly { message: string; [key: string]: unknown }[] | string,
+    options: { includeData?: boolean } = {}
+  ): this {
+    this.responseMode = "serviceError";
+    this.serviceErrors =
+      typeof errors === "string" ? [{ message: errors }] : errors;
+    this.includeServiceData = options.includeData ?? true;
+    return this;
+  }
+
   build(): MockedResponse<GetUsersQueryResponse, GetUsersQueryVariables> {
     return {
       request: {
@@ -1220,6 +1993,27 @@ class MockGetUsersQueryBuilder {
       },
       ...(this.responseMode === "networkError"
         ? { error: this.networkError ?? new Error("Network error") }
+        : {}),
+      ...(this.responseMode === "serviceError"
+        ? {
+            result: {
+              errors: this.serviceErrors,
+              ...(this.includeServiceData
+                ? {
+                    data: {
+                      __typename: "Query",
+                      users: this.users.map((item) => ({
+                        __typename: "User",
+                        name: item.name,
+                        age: item.age,
+                        deletedAt: item.deletedAt,
+                        otherField: item.otherField,
+                      })),
+                    },
+                  }
+                : {}),
+            },
+          }
         : {}),
       ...(this.responseMode === "success"
         ? {
