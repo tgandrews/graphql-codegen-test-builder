@@ -192,6 +192,43 @@ describe('classRenderer', () => {
         );
       });
 
+      it('should render returningNetworkError only on operation builders', () => {
+        const operationKlass: ClassObject = {
+          id: 'GetUser:output',
+          name: 'GetUser',
+          inputs: [],
+          outputs: [createObjectField('user', 'User:output')],
+          isInput: false,
+          operation: 'Query',
+        };
+        parseResult.classes.set('User:output', {
+          id: 'User:output',
+          name: 'User',
+          inputs: [],
+          outputs: [createSimpleField('name', GQLKind.String)],
+          isInput: false,
+        });
+
+        const operationResult = prettify(renderClass(operationKlass, parseResult));
+        expect(operationResult).toContain(
+          `returningNetworkError(error: Error = new Error("Network error")): this {
+    this.responseMode = "networkError";
+    this.networkError = error;
+    return this;
+  }`
+        );
+
+        const nonOperationKlass: ClassObject = {
+          id: 'User:output',
+          name: 'User',
+          inputs: [],
+          outputs: [createSimpleField('name', GQLKind.String)],
+          isInput: false,
+        };
+        const nonOperationResult = prettify(renderClass(nonOperationKlass, parseResult));
+        expect(nonOperationResult).not.toContain('returningNetworkError(');
+      });
+
       it('should render fragment-backed object fields using the normal setter', () => {
         const klass: ClassObject = {
           id: 'GetUser:output',
