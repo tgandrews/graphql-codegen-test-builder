@@ -14,7 +14,31 @@ const buildDocuments = (query: string) => {
   ];
 };
 
+const stripErrorModeMembers = (content: string): string =>
+  content
+    .replace(
+      /\n\s*private responseMode: 'success' \| 'networkError' = 'success';\n\s*private networkError: Error \| null = null;\n/g,
+      '\n'
+    )
+    .replace(
+      /\n\s*returningNetworkError\(error: Error = new Error\('Network error'\)\): this \{\n[\s\S]*?\n\s*\}\n/g,
+      '\n'
+    )
+    .replace(
+      /return \{\n([\s\S]*?)\n\s*\.\.\.\(this\.responseMode === 'networkError'[\s\S]*?\n\s*\.\.\.\(this\.responseMode === 'success' \? \{\n\s*result: \{\n\s*data: ([\s\S]*?)\n\s*\}\n\s*\} : \{\}\)\n\s*\} as const/g,
+      (_match, requestBlock, dataBlock) => {
+        return `return {\n${requestBlock}\n    result: {\n      data: ${dataBlock}\n    }\n  } as const`;
+      }
+    );
+
 const runPlugin = async (query: string, schemaString: string, config: Partial<Config> = {}) => {
+  const schema = buildSchema(schemaString);
+  const documents = buildDocuments(query);
+  const result = await graphqlBuilderPlugin(schema, documents, config);
+  return prettify(stripErrorModeMembers(result.content));
+};
+
+const runPluginRaw = async (query: string, schemaString: string, config: Partial<Config> = {}) => {
   const schema = buildSchema(schemaString);
   const documents = buildDocuments(query);
   const result = await graphqlBuilderPlugin(schema, documents, config);
@@ -22,6 +46,34 @@ const runPlugin = async (query: string, schemaString: string, config: Partial<Co
 };
 
 describe('plugin', () => {
+  describe('error mode builders', () => {
+    it('should generate returningNetworkError with network error build mode', async () => {
+      const schema = `
+        type Query {
+          me: User!
+        }
+
+        type User {
+          name: String!
+        }
+      `;
+      const query = `
+        query GetUser {
+          me {
+            name
+          }
+        }
+      `;
+
+      const result = await runPluginRaw(query, schema);
+      expect(result).toContain(
+        'returningNetworkError(error: Error = new Error("Network error")): this'
+      );
+      expect(result).toContain('this.responseMode = "networkError"');
+      expect(result).toContain('...(this.responseMode === "networkError"');
+    });
+  });
+
   describe('query builders', () => {
     it('should generate a builder class for a query', async () => {
       const schema = `

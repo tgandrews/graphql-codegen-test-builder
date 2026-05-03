@@ -47,6 +47,25 @@ function renderPickTypes(klass: ClassObject, parseResult: ParseResult): string[]
   return pickTypes;
 }
 
+function renderOperationResponseModeFields(klass: ClassObject): string[] {
+  if (!klass.operation) return [];
+  return [
+    `private responseMode: 'success' | 'networkError' = 'success';`,
+    `private networkError: Error | null = null;`,
+  ];
+}
+
+function renderOperationResponseModeSetters(klass: ClassObject): string[] {
+  if (!klass.operation) return [];
+  return [
+    `returningNetworkError(error: Error = new Error('Network error')): this {
+    this.responseMode = 'networkError'
+    this.networkError = error
+    return this
+  }`,
+  ];
+}
+
 export function renderClass(klass: ClassObject, parseResult: ParseResult): string {
   if (klass.shouldInline) {
     if (klass.operation) {
@@ -61,19 +80,23 @@ export function renderClass(klass: ClassObject, parseResult: ParseResult): strin
 
   const inputFields = klass.inputs.map((field) => renderField(field, parseResult, klass));
   const outputFields = klass.outputs.map((field) => renderField(field, parseResult, klass));
+  const responseModeFields = renderOperationResponseModeFields(klass);
 
   const inputSetters = klass.inputs.map((field) => renderSetter(field, 'for', parseResult, klass));
   const outputSetters = klass.outputs.map((field) =>
     renderSetter(field, 'having', parseResult, klass)
   );
+  const responseModeSetters = renderOperationResponseModeSetters(klass);
 
   const buildMethod = renderBuild(klass, parseResult);
 
   const parts: Array<string> = [
     inputFields.join('\n'),
     outputFields.join('\n'),
+    responseModeFields.join('\n'),
     inputSetters.join('\n'),
     outputSetters.join('\n'),
+    responseModeSetters.join('\n\n'),
     buildMethod,
   ];
   const combinedParts = parts.flat().join('\n\n');

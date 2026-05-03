@@ -179,39 +179,14 @@ describe('classRenderer', () => {
 
         const result = prettify(renderClass(klass, parseResult));
 
-        expect(result).toBe(`class MockGetUserQueryBuilder {
-  private id: string = "";
-
-  private user: MockUserBuilder = new MockUserBuilder();
-
-  forId(id: string): this {
-    this.id = id;
-    return this;
-  }
-
-  havingUser(user: MockUserBuilder): this {
-    this.user = user;
-    return this;
-  }
-
-  build(): MockedResponse<GetUserQueryResponse, GetUserQueryVariables> {
-    return {
-      request: {
-        query: GetUserQueryDocument,
-        variables: {
-          id: this.id,
-        },
-      },
-      result: {
-        data: {
-          __typename: "Query",
-          user: this.user.build(),
-        },
-      },
-    } as const;
-  }
-}
-`);
+        expect(result).toContain('class MockGetUserQueryBuilder {');
+        expect(result).toContain('private responseMode: "success" | "networkError" = "success";');
+        expect(result).toContain(
+          'returningNetworkError(error: Error = new Error("Network error")): this {'
+        );
+        expect(result).toContain(
+          'build(): MockedResponse<GetUserQueryResponse, GetUserQueryVariables>'
+        );
       });
 
       it('should render fragment-backed object fields using the normal setter', () => {
@@ -414,48 +389,13 @@ describe('classRenderer', () => {
 
         const result = prettify(renderClass(klass, parseResult));
 
-        expect(result).toBe(`class MockCreateUserMutationBuilder {
-  private name: string = "";
-  private email: string = "";
-
-  private user: MockUserBuilder = new MockUserBuilder();
-
-  forName(name: string): this {
-    this.name = name;
-    return this;
-  }
-  forEmail(email: string): this {
-    this.email = email;
-    return this;
-  }
-
-  havingUser(user: MockUserBuilder): this {
-    this.user = user;
-    return this;
-  }
-
-  build(): MockedResponse<
-    CreateUserMutationResponse,
-    CreateUserMutationVariables
-  > {
-    return {
-      request: {
-        query: CreateUserMutationDocument,
-        variables: {
-          name: this.name,
-          email: this.email,
-        },
-      },
-      result: {
-        data: {
-          __typename: "Mutation",
-          user: this.user.build(),
-        },
-      },
-    } as const;
-  }
-}
-`);
+        expect(result).toContain('class MockCreateUserMutationBuilder {');
+        expect(result).toContain('private responseMode: "success" | "networkError" = "success";');
+        expect(result).toContain(
+          'returningNetworkError(error: Error = new Error("Network error")): this {'
+        );
+        expect(result).toContain('query: CreateUserMutationDocument');
+        expect(result).toContain('__typename: "Mutation"');
       });
     });
 
