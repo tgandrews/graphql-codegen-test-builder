@@ -207,6 +207,7 @@ describe('buildRenderer', () => {
         );
         expect(result).toContain('query: GetUserQueryDocument');
         expect(result).toContain("this.responseMode === 'networkError'");
+        expect(result).toContain("this.responseMode === 'serviceError'");
         expect(result).toContain("__typename: 'Query'");
         expect(result).toContain('user: this.user.build()');
       });
@@ -238,6 +239,7 @@ describe('buildRenderer', () => {
         );
         expect(result).toContain('id: this.id');
         expect(result).toContain("this.responseMode === 'networkError'");
+        expect(result).toContain("this.responseMode === 'serviceError'");
       });
 
       it('should render build method for mutation operation', () => {

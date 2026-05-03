@@ -18,4 +18,5 @@ Each example includes:
 - [Multiple operations with shared types](./multi-operation-shared-type.md)
 - [Using `userDefinedClasses`](./user-defined-classes.md)
 - [Network error](./network-error.md)
+- [Error scenarios](./error-scenarios.md)
 - [Limitations: custom scalars and subscriptions](./limitations-custom-scalars.md)

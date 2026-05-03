@@ -238,6 +238,14 @@ function renderBuildResult(klass: ClassObject, parseResult: ParseResult): string
     ...(this.responseMode === 'networkError'
       ? { error: this.networkError ?? new Error('Network error') }
       : {}),
+    ...(this.responseMode === 'serviceError'
+      ? {
+          result: {
+            errors: this.serviceErrors,
+            ...(this.includeServiceData ? { data: ${data} } : {})
+          }
+        }
+      : {}),
     ...(this.responseMode === 'success' ? {
       result: {
         data: ${data}

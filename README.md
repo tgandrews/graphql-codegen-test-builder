@@ -38,9 +38,10 @@ What this demonstrates:
 - `havingX(...)` sets response payload fields.
 - `.build()` returns a `MockedResponse`-shaped object ready for Apollo tests.
 
-For network failure scenarios, operation builders also provide:
+For failure scenarios, operation builders also provide:
 
 - `returningNetworkError(error?)`
+- `returningServiceError(errors, options?)`
 
 ## Installation
 
@@ -106,7 +107,7 @@ Generated output is covered in detail in the scenario docs under [`examples/`](.
 - [Mutation with variables](./examples/mutation-with-variables.md)
 - [Multiple operations with shared types](./examples/multi-operation-shared-type.md)
 - [Using `userDefinedClasses`](./examples/user-defined-classes.md)
-- [Network error](./examples/network-error.md)
+- [Error scenarios](./examples/error-scenarios.md)
 - [Limitations: custom scalars and subscriptions](./examples/limitations-custom-scalars.md)
 
 Naming conventions:
@@ -118,14 +119,36 @@ Naming conventions:
 
 For queries/mutations selecting different subsets of a shared type, the generated output may also include `Pick<...>` helper types to keep operation field selections accurate.
 
-## Network error mocks
+## Error response modes
 
-Operation builders support a fluent network error mode while keeping `build()` as the terminal call.
+Operation builders support fluent error modes while keeping `build()` as the terminal call.
+
+Network error mocks:
 
 ```ts
 const mock = new MockGetUserQueryBuilder()
   .forId('1')
   .returningNetworkError(new Error('timeout'))
+  .build();
+```
+
+Service/GraphQL error mocks with partial data (default behavior):
+
+```ts
+const mock = new MockGetUserQueryBuilder()
+  .forId('1')
+  .havingUser({ name: 'Bob' })
+  .returningServiceError('Something broken')
+  .build();
+```
+
+Service errors without data:
+
+```ts
+const mock = new MockGetUserQueryBuilder()
+  .forId('1')
+  .havingUser({ name: 'Bob' })
+  .returningServiceError([{ message: 'Forbidden' }], { includeData: false })
   .build();
 ```
 

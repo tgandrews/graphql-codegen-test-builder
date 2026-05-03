@@ -50,10 +50,40 @@ describe('plugin', () => {
 
       const result = await runPluginRaw(query, schema);
       expect(result).toContain(
+        'type GraphQLErrorLike = { message: string; [key: string]: unknown };'
+      );
+      expect(result).toContain(
         'returningNetworkError(error: Error = new Error("Network error")): this'
       );
       expect(result).toContain('this.responseMode = "networkError"');
       expect(result).toContain('...(this.responseMode === "networkError"');
+    });
+
+    it('should generate returningServiceError with includeData toggle', async () => {
+      const schema = `
+        type Query {
+          me: User!
+        }
+
+        type User {
+          name: String!
+        }
+      `;
+      const query = `
+        query GetUser {
+          me {
+            name
+          }
+        }
+      `;
+
+      const result = await runPluginRaw(query, schema);
+      expect(result).toContain('returningServiceError(');
+      expect(result).toContain('errors: readonly GraphQLErrorLike[] | string');
+      expect(result).toContain('this.serviceErrors =');
+      expect(result).toContain('typeof errors === "string" ? [{ message: errors }] : errors');
+      expect(result).toContain('this.includeServiceData = options.includeData ?? true');
+      expect(result).toContain('...(this.includeServiceData');
     });
   });
 

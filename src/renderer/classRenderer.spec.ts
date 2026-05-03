@@ -180,10 +180,13 @@ describe('classRenderer', () => {
         const result = prettify(renderClass(klass, parseResult));
 
         expect(result).toContain('class MockGetUserQueryBuilder {');
-        expect(result).toContain('private responseMode: "success" | "networkError" = "success";');
+        expect(result).toContain(
+          'private responseMode: "success" | "networkError" | "serviceError" = "success";'
+        );
         expect(result).toContain(
           'returningNetworkError(error: Error = new Error("Network error")): this {'
         );
+        expect(result).toContain('returningServiceError(');
         expect(result).toContain(
           'build(): MockedResponse<GetUserQueryResponse, GetUserQueryVariables>'
         );
@@ -390,10 +393,10 @@ describe('classRenderer', () => {
         const result = prettify(renderClass(klass, parseResult));
 
         expect(result).toContain('class MockCreateUserMutationBuilder {');
-        expect(result).toContain('private responseMode: "success" | "networkError" = "success";');
         expect(result).toContain(
-          'returningNetworkError(error: Error = new Error("Network error")): this {'
+          'private responseMode: "success" | "networkError" | "serviceError" = "success";'
         );
+        expect(result).toContain('returningServiceError(');
         expect(result).toContain('query: CreateUserMutationDocument');
         expect(result).toContain('__typename: "Mutation"');
       });

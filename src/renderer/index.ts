@@ -29,8 +29,14 @@ const render = (parseResult: ParseResult): string => {
 
   const imports = Array.from(importStatements);
   const output: string[] = [];
+  const hasOperationBuilders = Array.from(parseResult.classes.values()).some(
+    (klass) => !klass.userDefined && Boolean(klass.operation)
+  );
   if (imports.length > 0) {
     output.push(imports.join('\n'));
+  }
+  if (hasOperationBuilders) {
+    output.push(`type GraphQLErrorLike = { message: string; [key: string]: unknown };`);
   }
   if (fragments.length > 0) {
     output.push(fragments.join('\n\n'));

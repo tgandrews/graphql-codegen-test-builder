@@ -50,8 +50,10 @@ function renderPickTypes(klass: ClassObject, parseResult: ParseResult): string[]
 function renderOperationResponseModeFields(klass: ClassObject): string[] {
   if (!klass.operation) return [];
   return [
-    `private responseMode: 'success' | 'networkError' = 'success';`,
+    `private responseMode: 'success' | 'networkError' | 'serviceError' = 'success';`,
     `private networkError: Error | null = null;`,
+    `private serviceErrors: readonly GraphQLErrorLike[] = [];`,
+    `private includeServiceData = true;`,
   ];
 }
 
@@ -61,6 +63,15 @@ function renderOperationResponseModeSetters(klass: ClassObject): string[] {
     `returningNetworkError(error: Error = new Error('Network error')): this {
     this.responseMode = 'networkError'
     this.networkError = error
+    return this
+  }`,
+    `returningServiceError(
+    errors: readonly GraphQLErrorLike[] | string,
+    options: { includeData?: boolean } = {}
+  ): this {
+    this.responseMode = 'serviceError'
+    this.serviceErrors = typeof errors === 'string' ? [{ message: errors }] : errors
+    this.includeServiceData = options.includeData ?? true
     return this
   }`,
   ];
