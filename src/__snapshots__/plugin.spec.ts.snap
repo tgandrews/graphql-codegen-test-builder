@@ -12,10 +12,7 @@ class MockGetUserQueryBuilder {
 
   private responseMode: "success" | "networkError" | "serviceError" = "success";
   private networkError: Error | null = null;
-  private serviceErrors: readonly {
-    message: string;
-    [key: string]: unknown;
-  }[] = [];
+  private serviceErrors: readonly GraphQLErrorLike[] = [];
   private includeServiceData = true;
 
   havingMe(me: MockUserType): this {
@@ -30,7 +27,7 @@ class MockGetUserQueryBuilder {
   }
 
   returningServiceError(
-    errors: readonly { message: string; [key: string]: unknown }[] | string,
+    errors: readonly GraphQLErrorLike[] | string,
     options: { includeData?: boolean } = {}
   ): this {
     this.responseMode = "serviceError";
@@ -148,10 +145,7 @@ class MockGetUserQueryBuilder {
 
   private responseMode: "success" | "networkError" | "serviceError" = "success";
   private networkError: Error | null = null;
-  private serviceErrors: readonly {
-    message: string;
-    [key: string]: unknown;
-  }[] = [];
+  private serviceErrors: readonly GraphQLErrorLike[] = [];
   private includeServiceData = true;
 
   havingMe(me: MockGetUserMeSelectionBuilder): this {
@@ -166,7 +160,7 @@ class MockGetUserQueryBuilder {
   }
 
   returningServiceError(
-    errors: readonly { message: string; [key: string]: unknown }[] | string,
+    errors: readonly GraphQLErrorLike[] | string,
     options: { includeData?: boolean } = {}
   ): this {
     this.responseMode = "serviceError";
@@ -233,10 +227,7 @@ class MockGetUserQueryBuilder {
 
   private responseMode: "success" | "networkError" | "serviceError" = "success";
   private networkError: Error | null = null;
-  private serviceErrors: readonly {
-    message: string;
-    [key: string]: unknown;
-  }[] = [];
+  private serviceErrors: readonly GraphQLErrorLike[] = [];
   private includeServiceData = true;
 
   havingMe(me: MockUserType): this {
@@ -251,7 +242,7 @@ class MockGetUserQueryBuilder {
   }
 
   returningServiceError(
-    errors: readonly { message: string; [key: string]: unknown }[] | string,
+    errors: readonly GraphQLErrorLike[] | string,
     options: { includeData?: boolean } = {}
   ): this {
     this.responseMode = "serviceError";
@@ -314,10 +305,7 @@ class MockGetUsersQueryBuilder {
 
   private responseMode: "success" | "networkError" | "serviceError" = "success";
   private networkError: Error | null = null;
-  private serviceErrors: readonly {
-    message: string;
-    [key: string]: unknown;
-  }[] = [];
+  private serviceErrors: readonly GraphQLErrorLike[] = [];
   private includeServiceData = true;
 
   havingUsers(users: MockUserType[]): this {
@@ -332,7 +320,7 @@ class MockGetUsersQueryBuilder {
   }
 
   returningServiceError(
-    errors: readonly { message: string; [key: string]: unknown }[] | string,
+    errors: readonly GraphQLErrorLike[] | string,
     options: { includeData?: boolean } = {}
   ): this {
     this.responseMode = "serviceError";
