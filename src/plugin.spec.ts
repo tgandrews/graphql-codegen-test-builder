@@ -108,7 +108,6 @@ describe('plugin', () => {
         prettify(
           `type MockUserType = {
           name: string;
-          age: number | null;
         }
 
         type MockCreateUserInputType = {
@@ -124,7 +123,6 @@ describe('plugin', () => {
 
           private createUser: MockUserType = {
             name: '',
-            age: null,
           };
 
           forInput(input: MockCreateUserInputType): this {
