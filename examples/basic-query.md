@@ -1,9 +1,11 @@
 # Basic query
 
 ## Goal
+
 Generate a query builder for a simple operation with scalar output fields.
 
 ## Schema
+
 ```graphql
 type Query {
   me: User!
@@ -16,6 +18,7 @@ type User {
 ```
 
 ## Operation
+
 ```graphql
 query GetUser {
   me {
@@ -26,6 +29,7 @@ query GetUser {
 ```
 
 ## Representative generated output
+
 ```ts
 type MockUserType = {
   name: string;
@@ -64,9 +68,11 @@ class MockGetUserQueryBuilder {
 ```
 
 ## Why it looks this way
+
 - `GetUser` is a query operation, so the builder class is named `MockGetUserQueryBuilder`.
 - `User` is small, so it may be represented inline as `MockUserType`.
 - `build()` returns a request/result shape keyed by the operation document and response data.
 
 ## Gotchas
+
 - `MockedResponse` and `GetUserQueryDocument`/types must exist from companion codegen output.

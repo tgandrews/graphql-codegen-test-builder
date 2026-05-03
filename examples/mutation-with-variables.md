@@ -1,9 +1,11 @@
 # Mutation with variables
 
 ## Goal
+
 Generate a mutation builder with variable setters and output setters.
 
 ## Schema
+
 ```graphql
 type Mutation {
   createUser(input: CreateUserInput!): User!
@@ -21,6 +23,7 @@ type User {
 ```
 
 ## Operation
+
 ```graphql
 mutation CreateUser($input: CreateUserInput!) {
   createUser(input: $input) {
@@ -30,6 +33,7 @@ mutation CreateUser($input: CreateUserInput!) {
 ```
 
 ## Representative generated output
+
 ```ts
 type MockCreateUserInputType = {
   name: string;
@@ -85,9 +89,11 @@ class MockCreateUserMutationBuilder {
 ```
 
 ## Why it looks this way
+
 - `forInput(...)` is generated from operation variables.
 - `havingCreateUser(...)` sets the mutation response field.
 - `build()` includes both `request.variables` and typed result data.
 
 ## Gotchas
+
 - Variable inputs are expected to be input objects in current behavior.

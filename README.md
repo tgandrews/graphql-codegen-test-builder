@@ -1,9 +1,11 @@
 # graphql-codegen-builder
 
 ## What it does
+
 `graphql-codegen-builder` is a GraphQL Code Generator plugin that generates typed mock builders from your GraphQL operations for test usage. The generated code provides `forX(...)` setters for operation inputs, `havingX(...)` setters for response fields, and `build()` methods that return mock objects shaped for operation documents plus typed variables and responses.
 
 ## Test usage example
+
 Generated builders are designed to produce `MockedResponse` objects for test setup. This example uses Apollo Client's `MockedProvider`.
 
 ```ts
@@ -37,6 +39,7 @@ What this demonstrates:
 - `.build()` returns a `MockedResponse`-shaped object ready for Apollo tests.
 
 ## Installation
+
 ```bash
 npm i graphql-codegen-builder
 ```
@@ -44,6 +47,7 @@ npm i graphql-codegen-builder
 This package is currently early-stage (`0.1.0`), so expect iteration and verify generated output in your test suite when upgrading.
 
 ## Compatibility and prerequisites
+
 This plugin generates mock builders, but it expects several symbols to already exist in your project:
 
 - `MockedResponse`
@@ -54,6 +58,7 @@ This plugin generates mock builders, but it expects several symbols to already e
 In practice, this means you should run this plugin alongside GraphQL Codegen plugins that generate typed documents and operation types. This plugin does not generate or import those symbols for you.
 
 ## GraphQL Codegen configuration
+
 Example `codegen.ts`:
 
 ```ts
@@ -88,6 +93,7 @@ export default config;
 ```
 
 ## Generated output deep dive
+
 If you want to see the generated code anatomy behind the test usage, continue below.
 
 Generated output is covered in detail in the scenario docs under [`examples/`](./examples/README.md):
@@ -108,6 +114,7 @@ Naming conventions:
 For queries/mutations selecting different subsets of a shared type, the generated output may also include `Pick<...>` helper types to keep operation field selections accurate.
 
 ## userDefinedClasses configuration
+
 Config shape:
 
 ```ts
@@ -130,12 +137,14 @@ Import behavior:
 User-defined classes/types should be a compatible superset of what generated builders expect for those fields.
 
 ## Behavioral notes and guarantees
+
 - The plugin default export is a GraphQL Codegen plugin function.
 - Operation outputs are always generated as builder classes, not inlined type aliases.
 - Small/simple nested types may be emitted as inline mock types instead of dedicated builder classes.
 - When multiple operations select different fields from the same type, emitted helpers may narrow types for operation-specific selections.
 
 ## Limitations
+
 - Supported operation kinds: `query`, `mutation` (no `subscription` support).
 - Supported scalars: `String`, `ID`, `Int`, `Float`, `Boolean`.
 - Unknown/custom scalars currently throw unless handled before this plugin’s type expectations.
@@ -143,6 +152,7 @@ User-defined classes/types should be a compatible superset of what generated bui
 - List fields are parsed, but list-heavy schemas should be validated in your own suite to confirm output matches your intended mock ergonomics.
 
 ## Troubleshooting
+
 `Cannot find name 'MockedResponse'`
 
 - Cause: The generated file references `MockedResponse` but your file/module does not provide the type.
@@ -159,6 +169,7 @@ Missing `*Document`, `*Response`, or `*Variables` symbols
 - Fix: See [Limitations](#limitations), then adjust schema/operations or preprocess types before this plugin.
 
 ## Development
+
 ```bash
 npm test
 npm run lint
@@ -167,4 +178,5 @@ npm run format
 ```
 
 ## License
+
 ISC
