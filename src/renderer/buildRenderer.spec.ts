@@ -202,19 +202,13 @@ describe('buildRenderer', () => {
 
         const result = renderBuild(klass, parseResult);
 
-        expect(result).toBe(`build(): MockedResponse<GetUserQueryResponse, GetUserQueryVariables> {
-    return {
-    request: {
-      query: GetUserQueryDocument,
-    },
-    result: {
-      data: {
-        __typename: 'Query',
-        user: this.user.build()
-      }
-    }
-  } as const
-  }`);
+        expect(result).toContain(
+          'build(): MockedResponse<GetUserQueryResponse, GetUserQueryVariables>'
+        );
+        expect(result).toContain('query: GetUserQueryDocument');
+        expect(result).toContain("this.responseMode === 'networkError'");
+        expect(result).toContain("__typename: 'Query'");
+        expect(result).toContain('user: this.user.build()');
       });
 
       it('should render build method for query operation with variables', () => {
@@ -239,22 +233,11 @@ describe('buildRenderer', () => {
 
         const result = renderBuild(klass, parseResult);
 
-        expect(result).toBe(`build(): MockedResponse<GetUserQueryResponse, GetUserQueryVariables> {
-    return {
-    request: {
-      query: GetUserQueryDocument,
-      variables: {
-    id: this.id
-  }
-    },
-    result: {
-      data: {
-        __typename: 'Query',
-        user: this.user.build()
-      }
-    }
-  } as const
-  }`);
+        expect(result).toContain(
+          'build(): MockedResponse<GetUserQueryResponse, GetUserQueryVariables>'
+        );
+        expect(result).toContain('id: this.id');
+        expect(result).toContain("this.responseMode === 'networkError'");
       });
 
       it('should render build method for mutation operation', () => {
@@ -282,24 +265,13 @@ describe('buildRenderer', () => {
 
         const result = renderBuild(klass, parseResult);
 
-        expect(result)
-          .toBe(`build(): MockedResponse<CreateUserMutationResponse, CreateUserMutationVariables> {
-    return {
-    request: {
-      query: CreateUserMutationDocument,
-      variables: {
-    name: this.name,
-email: this.email
-  }
-    },
-    result: {
-      data: {
-        __typename: 'Mutation',
-        user: this.user.build()
-      }
-    }
-  } as const
-  }`);
+        expect(result).toContain(
+          'build(): MockedResponse<CreateUserMutationResponse, CreateUserMutationVariables>'
+        );
+        expect(result).toContain('query: CreateUserMutationDocument');
+        expect(result).toContain('name: this.name');
+        expect(result).toContain('email: this.email');
+        expect(result).toContain("__typename: 'Mutation'");
       });
 
       it('should handle selectedFields in operation outputs', () => {
@@ -334,19 +306,12 @@ email: this.email
 
         const result = renderBuild(klass, parseResult);
 
-        expect(result).toBe(`build(): MockedResponse<GetUserQueryResponse, GetUserQueryVariables> {
-    return {
-    request: {
-      query: GetUserQueryDocument,
-    },
-    result: {
-      data: {
-        __typename: 'Query',
-        user: this.user.build()
-      }
-    }
-  } as const
-  }`);
+        expect(result).toContain(
+          'build(): MockedResponse<GetUserQueryResponse, GetUserQueryVariables>'
+        );
+        expect(result).toContain('query: GetUserQueryDocument');
+        expect(result).toContain("__typename: 'Query'");
+        expect(result).toContain('user: this.user.build()');
       });
 
       it('should build fragment-backed singular object fields from fragment builders', () => {

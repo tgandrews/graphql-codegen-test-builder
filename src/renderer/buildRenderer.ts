@@ -197,6 +197,27 @@ function renderBuildVariables(klass: ClassObject, parseResult: ParseResult): str
   }`;
 }
 
+function renderOperationRequest(klass: ClassObject, parseResult: ParseResult): string {
+  const baseName = `${klass.name}${klass.operation}`;
+  const requestParts = [
+    `query: ${baseName}Document,`,
+    renderBuildVariables(klass, parseResult),
+  ].filter(Boolean);
+
+  return `{
+      ${requestParts.join('\n      ')}
+    }`;
+}
+
+function renderOperationData(klass: ClassObject, parseResult: ParseResult): string {
+  return `{
+        __typename: '${klass.operation}',
+        ${klass.outputs
+          .map((field) => renderOutputField(field, parseResult, [], field.selectedFields))
+          .join(',\n        ')}
+      }`;
+}
+
 function renderBuildResult(klass: ClassObject, parseResult: ParseResult): string {
   if (!klass.operation) {
     if (klass.isSelectionBuilder) {
@@ -209,24 +230,19 @@ function renderBuildResult(klass: ClassObject, parseResult: ParseResult): string
     throw new Error(`Operation "${klass.name}" has no output fields to render`);
   }
 
-  const baseName = `${klass.name}${klass.operation}`;
-  const requestParts = [
-    `query: ${baseName}Document,`,
-    renderBuildVariables(klass, parseResult),
-  ].filter(Boolean);
+  const request = renderOperationRequest(klass, parseResult);
+  const data = renderOperationData(klass, parseResult);
 
   return `{
-    request: {
-      ${requestParts.join('\n      ')}
-    },
-    result: {
-      data: {
-        __typename: '${klass.operation}',
-        ${klass.outputs
-          .map((field) => renderOutputField(field, parseResult, [], field.selectedFields))
-          .join(',\n        ')}
+    request: ${request},
+    ...(this.responseMode === 'networkError'
+      ? { error: this.networkError ?? new Error('Network error') }
+      : {}),
+    ...(this.responseMode === 'success' ? {
+      result: {
+        data: ${data}
       }
-    }
+    } : {})
   }`;
 }
 

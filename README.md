@@ -38,6 +38,10 @@ What this demonstrates:
 - `havingX(...)` sets response payload fields.
 - `.build()` returns a `MockedResponse`-shaped object ready for Apollo tests.
 
+For network failure scenarios, operation builders also provide:
+
+- `returningNetworkError(error?)`
+
 ## Installation
 
 ```bash
@@ -102,6 +106,7 @@ Generated output is covered in detail in the scenario docs under [`examples/`](.
 - [Mutation with variables](./examples/mutation-with-variables.md)
 - [Multiple operations with shared types](./examples/multi-operation-shared-type.md)
 - [Using `userDefinedClasses`](./examples/user-defined-classes.md)
+- [Network error](./examples/network-error.md)
 - [Limitations: custom scalars and subscriptions](./examples/limitations-custom-scalars.md)
 
 Naming conventions:
@@ -112,6 +117,17 @@ Naming conventions:
 - Output setters: `having${FieldName}(...)`
 
 For queries/mutations selecting different subsets of a shared type, the generated output may also include `Pick<...>` helper types to keep operation field selections accurate.
+
+## Network error mocks
+
+Operation builders support a fluent network error mode while keeping `build()` as the terminal call.
+
+```ts
+const mock = new MockGetUserQueryBuilder()
+  .forId('1')
+  .returningNetworkError(new Error('timeout'))
+  .build();
+```
 
 ## userDefinedClasses configuration
 
