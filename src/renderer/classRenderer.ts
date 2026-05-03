@@ -52,7 +52,7 @@ function renderOperationResponseModeFields(klass: ClassObject): string[] {
   return [
     `private responseMode: 'success' | 'networkError' | 'serviceError' = 'success';`,
     `private networkError: Error | null = null;`,
-    `private serviceErrors: readonly GraphQLErrorLike[] = [];`,
+    `private serviceErrors: readonly { message: string; [key: string]: unknown }[] = [];`,
     `private includeServiceData = true;`,
   ];
 }
@@ -66,7 +66,7 @@ function renderOperationResponseModeSetters(klass: ClassObject): string[] {
     return this
   }`,
     `returningServiceError(
-    errors: readonly GraphQLErrorLike[] | string,
+    errors: readonly { message: string; [key: string]: unknown }[] | string,
     options: { includeData?: boolean } = {}
   ): this {
     this.responseMode = 'serviceError'
