@@ -667,7 +667,7 @@ describe('classRenderer', () => {
     });
 
     describe('edge cases', () => {
-      it('should throw error for class with only input fields', () => {
+      it('should render class with only input fields', () => {
         const klass: ClassObject = {
           id: 'Filter:input',
           name: 'Filter',
@@ -679,9 +679,29 @@ describe('classRenderer', () => {
           isInput: true,
         };
 
-        expect(() => renderClass(klass, parseResult)).toThrow(
-          'Class "Filter" has no output fields to render'
-        );
+        const result = prettify(renderClass(klass, parseResult));
+
+        expect(result).toBe(`class MockFilterBuilder {
+  private search: string = "";
+  private limit: number = 0;
+
+  forSearch(search: string): this {
+    this.search = search;
+    return this;
+  }
+  forLimit(limit: number): this {
+    this.limit = limit;
+    return this;
+  }
+
+  build() {
+    return {
+      search: this.search,
+      limit: this.limit,
+    } as const;
+  }
+}
+`);
       });
 
       it('should render class with only output fields', () => {

@@ -147,6 +147,18 @@ function renderBuildObject(
   parentPath: string[],
   selectedFieldsFilter?: string[]
 ): string {
+  if (klass.isInput) {
+    if (klass.inputs.length === 0) {
+      throw new Error(`Class "${klass.name}" has no input fields to render`);
+    }
+
+    return `{
+      ${klass.inputs
+        .map((field) => renderOutputField(field, parseResult, parentPath))
+        .join(',\n      ')}
+    }`;
+  }
+
   // Use selectedFieldsFilter if provided, otherwise use selectedOutputs or all outputs
   let fieldsToRender = klass.outputs;
   if (selectedFieldsFilter && selectedFieldsFilter.length > 0) {

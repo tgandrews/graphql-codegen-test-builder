@@ -31,6 +31,10 @@ export class ParseResult {
 
   constructor(private readonly config: Config) {}
 
+  getConfig(): Config {
+    return this.config;
+  }
+
   addClass(klass: Omit<ClassObject, 'id'>): this {
     // Apply user-defined class configuration
     const userDefinedClassConfig = this.config.userDefinedClasses?.[klass.name];
