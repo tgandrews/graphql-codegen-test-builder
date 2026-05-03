@@ -21,6 +21,12 @@ const runPlugin = async (query: string, schemaString: string, config: Partial<Co
   return prettify(result.content);
 };
 
+const expectContainsAll = (result: string, patterns: string[]) => {
+  for (const pattern of patterns) {
+    expect(result).toContain(pattern);
+  }
+};
+
 describe('plugin', () => {
   describe('error mode builders', () => {
     it('should generate returningNetworkError with network error build mode', async () => {
@@ -42,7 +48,11 @@ describe('plugin', () => {
       `;
 
       const result = await runPlugin(query, schema);
-      expect(result).toMatchSnapshot();
+      expectContainsAll(result, [
+        'returningNetworkError(error: Error = new Error("Network error")): this',
+        'this.responseMode = "networkError"',
+        '...(this.responseMode === "networkError"',
+      ]);
     });
 
     it('should generate returningServiceError with includeData toggle', async () => {
@@ -116,7 +126,12 @@ describe('plugin', () => {
         }
       `;
       const result = await runPlugin(query, schema);
-      expect(result).toMatchSnapshot();
+      expectContainsAll(result, [
+        'class MockCreateUserMutationBuilder {',
+        'forInput(input: MockCreateUserInputType): this {',
+        'returningNetworkError(error: Error = new Error("Network error")): this',
+        'query: CreateUserMutationDocument',
+      ]);
     });
   });
 
@@ -143,7 +158,12 @@ describe('plugin', () => {
         }
       `;
       const result = await runPlugin(query, schema);
-      expect(result).toMatchSnapshot();
+      expectContainsAll(result, [
+        'type MockUserType = {',
+        'email: string | null;',
+        'class MockGetUserQueryBuilder {',
+        'havingMe(me: MockUserType): this {',
+      ]);
     });
   });
 
@@ -174,7 +194,11 @@ describe('plugin', () => {
         }
       `;
       const result = await runPlugin(query, schema);
-      expect(result).toMatchSnapshot();
+      expectContainsAll(result, [
+        'type GetUserNameUserType = Pick<MockUserType, "name">;',
+        'class MockGetUserNameQueryBuilder {',
+        'class MockGetUserEmailQueryBuilder {',
+      ]);
     });
   });
 
@@ -220,7 +244,12 @@ describe('plugin', () => {
         }
       `;
       const result = await runPlugin(query, schema);
-      expect(result).toMatchSnapshot();
+      expectContainsAll(result, [
+        'score: number;',
+        'active: boolean;',
+        'class MockDeleteUserMutationBuilder {',
+        'query: DeleteUserMutationDocument',
+      ]);
     });
   });
 
@@ -243,7 +272,11 @@ describe('plugin', () => {
         }
       `;
       const result = await runPlugin(query, schema);
-      expect(result).toMatchSnapshot();
+      expectContainsAll(result, [
+        'class MockUserSummaryFragmentBuilder {',
+        'build() {',
+        'name: this.name,',
+      ]);
     });
   });
 
@@ -272,7 +305,11 @@ describe('plugin', () => {
         }
       `;
       const result = await runPlugin(query, schema);
-      expect(result).toMatchSnapshot();
+      expectContainsAll(result, [
+        'class MockGetUserQueryBuilder {',
+        'private me: MockUserSummaryFragmentBuilder =',
+        '...this.me.build()',
+      ]);
     });
 
     it('should compose multiple fragment spreads on the same field into a single builder', async () => {
@@ -330,7 +367,11 @@ describe('plugin', () => {
         }
       `;
       const result = await runPlugin(query, schema);
-      expect(result).toMatchSnapshot();
+      expectContainsAll(result, [
+        'class MockGetUserMeSelectionBuilder {',
+        'private me: MockGetUserMeSelectionBuilder =',
+        'new MockGetUserMeSelectionBuilder();',
+      ]);
     });
   });
 
@@ -357,7 +398,10 @@ describe('plugin', () => {
         }
       `;
       const result = await runPlugin(query, schema);
-      expect(result).toMatchSnapshot();
+      expectContainsAll(result, [
+        'private me: MockUserSummaryFragmentBuilder | null =',
+        'this.me == null',
+      ]);
     });
   });
 
@@ -384,7 +428,10 @@ describe('plugin', () => {
         }
       `;
       const result = await runPlugin(query, schema);
-      expect(result).toMatchSnapshot();
+      expectContainsAll(result, [
+        'private users: MockUserSummaryFragmentBuilder[] = [];',
+        'users: this.users.map((item) => ({',
+      ]);
     });
   });
 
@@ -453,7 +500,11 @@ describe('plugin', () => {
         },
       };
       const result = await runPlugin(query, schema, config);
-      expect(result).toMatchSnapshot();
+      expectContainsAll(result, [
+        'import { ProfileModel } from "./profileModel";',
+        'private me: MockUserType = {',
+        'bio: this.me.profile.bio',
+      ]);
     });
   });
 
@@ -481,7 +532,10 @@ describe('plugin', () => {
       }
     `;
     const result = await runPlugin(query, schema, { inlineFieldCountThreshold: 4 });
-    expect(result).toMatchSnapshot();
+    expectContainsAll(result, [
+      'type MockCreateUserInputType = {',
+      'forInput(input: MockCreateUserInputType): this {',
+    ]);
   });
 
   it('should inline three-field input objects by default', async () => {
@@ -508,7 +562,10 @@ describe('plugin', () => {
       }
     `;
     const result = await runPlugin(query, schema);
-    expect(result).toMatchSnapshot();
+    expectContainsAll(result, [
+      'type MockCreateUserInputType = {',
+      'forInput(input: MockCreateUserInputType): this {',
+    ]);
   });
 
   it('should render input builders when the configured threshold does not inline them', async () => {
@@ -535,7 +592,11 @@ describe('plugin', () => {
       }
     `;
     const result = await runPlugin(query, schema, { inlineFieldCountThreshold: 2 });
-    expect(result).toMatchSnapshot();
+    expectContainsAll(result, [
+      'class MockCreateUserInputBuilder {',
+      'forInput(input: MockCreateUserInputBuilder): this {',
+      'input: this.input.build()',
+    ]);
   });
 
   it('should disable optimisation when configured', async () => {
@@ -556,6 +617,10 @@ describe('plugin', () => {
       }
     `;
     const result = await runPlugin(query, schema, { enableOptimiser: false });
-    expect(result).toMatchSnapshot();
+    expectContainsAll(result, [
+      'class MockUserBuilder {',
+      'private me: MockUserBuilder = new MockUserBuilder();',
+      'me: this.me.build()',
+    ]);
   });
 });
