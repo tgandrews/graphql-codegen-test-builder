@@ -1,14 +1,16 @@
 import { ParseResult } from '../parser';
+import { buildSelectionCatalogue } from '../selection';
 import { renderClass } from './classRenderer';
 import { renderFragment } from './fragmentRenderer';
 
 const render = (parseResult: ParseResult): string => {
+  const selectionCatalogue = buildSelectionCatalogue(parseResult);
   const importStatements = new Set<string>();
   const fragments: string[] = [];
   const classes: string[] = [];
 
   parseResult.fragments.forEach((fragment) => {
-    fragments.push(renderFragment(fragment, parseResult));
+    fragments.push(renderFragment(fragment, parseResult, selectionCatalogue));
   });
 
   parseResult.classes.forEach((klass) => {
@@ -24,7 +26,7 @@ const render = (parseResult: ParseResult): string => {
       return;
     }
 
-    classes.push(renderClass(klass, parseResult));
+    classes.push(renderClass(klass, parseResult, selectionCatalogue));
   });
 
   const imports = Array.from(importStatements);

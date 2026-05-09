@@ -1,23 +1,24 @@
 import { FieldValue, FragmentObject, GQLKind, ParseResult } from '../parser';
+import { buildSelectionCatalogue, SelectionCatalogue } from '../selection';
 import { renderField, renderSetter } from './fieldRenderer';
-import { isFragmentBackedField } from './typeRenderer';
 
 function renderFragmentOutputField(
   field: FieldValue,
   parseResult: ParseResult,
-  parentPath: string[] = []
+  parentPath: string[] = [],
+  selectionCatalogue: SelectionCatalogue = buildSelectionCatalogue(parseResult)
 ): string {
   const fieldPath = [...parentPath, field.name].join('.');
   if (field.type.kind !== GQLKind.Object) {
     return `${field.name}: this.${fieldPath}`;
   }
 
-  const klass = parseResult.classes.get(field.type.id);
-  if (!klass) {
-    throw new Error(`Unable to find reference to "${field.type.id}" from "${field.name}"`);
+  const resolvedField = selectionCatalogue.getResolvedObjectField(field);
+  if (!resolvedField) {
+    throw new Error(`Unable to resolve object field for "${field.name}"`);
   }
 
-  if (isFragmentBackedField(field)) {
+  if (resolvedField.kind === 'fragment-backed') {
     if (field.isList) {
       if (field.type.nullable) {
         return `${field.name}: this.${fieldPath}?.map(item => item.build()) ?? null`;
@@ -31,25 +32,55 @@ function renderFragmentOutputField(
   }
 
   if (field.isList) {
-    if (klass.shouldInline || klass.userDefined) {
+    if (
+      resolvedField.kind === 'inline' ||
+      resolvedField.kind === 'inline-input' ||
+      resolvedField.kind === 'inline-pick' ||
+      resolvedField.kind === 'user-defined'
+    ) {
+      if (field.type.nullable) {
+        return `${field.name}: this.${fieldPath} ?? null`;
+      }
       return `${field.name}: this.${fieldPath}`;
+    }
+    if (field.type.nullable) {
+      return `${field.name}: this.${fieldPath}?.map(item => item.build()) ?? null`;
     }
     return `${field.name}: this.${fieldPath}.map(item => item.build())`;
   }
 
-  if (klass.shouldInline || klass.userDefined) {
+  if (
+    resolvedField.kind === 'inline' ||
+    resolvedField.kind === 'inline-input' ||
+    resolvedField.kind === 'inline-pick' ||
+    resolvedField.kind === 'user-defined'
+  ) {
+    if (field.type.nullable) {
+      return `${field.name}: this.${fieldPath} ?? null`;
+    }
     return `${field.name}: this.${fieldPath}`;
   }
 
+  if (field.type.nullable) {
+    return `${field.name}: this.${fieldPath}?.build() ?? null`;
+  }
   return `${field.name}: this.${fieldPath}.build()`;
 }
 
-export function renderFragment(fragment: FragmentObject, parseResult: ParseResult): string {
+export function renderFragment(
+  fragment: FragmentObject,
+  parseResult: ParseResult,
+  selectionCatalogue: SelectionCatalogue = buildSelectionCatalogue(parseResult)
+): string {
   const className = `Mock${fragment.name}FragmentBuilder`;
-  const fields = fragment.outputs.map((field) => renderField(field, parseResult));
-  const setters = fragment.outputs.map((field) => renderSetter(field, 'having', parseResult));
+  const fields = fragment.outputs.map((field) =>
+    renderField(field, parseResult, undefined, selectionCatalogue)
+  );
+  const setters = fragment.outputs.map((field) =>
+    renderSetter(field, 'having', parseResult, undefined, selectionCatalogue)
+  );
   const buildFields = fragment.outputs.map((field) =>
-    renderFragmentOutputField(field, parseResult)
+    renderFragmentOutputField(field, parseResult, [], selectionCatalogue)
   );
 
   return `class ${className} {

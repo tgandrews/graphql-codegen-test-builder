@@ -1,47 +1,52 @@
 import { ClassObject, GQLKind, ParseResult } from '../parser';
-import { renderType, getPickTypeName } from './typeRenderer';
+import { buildSelectionCatalogue, SelectionCatalogue } from '../selection';
+import { renderType } from './typeRenderer';
 import { renderField, renderSetter } from './fieldRenderer';
 import { renderBuild } from './buildRenderer';
 import { determineFieldsToRender } from './helpers';
 
-function renderClassAsType(klass: ClassObject, parseResult: ParseResult): string {
+function renderClassAsType(
+  klass: ClassObject,
+  parseResult: ParseResult,
+  selectionCatalogue: SelectionCatalogue
+): string {
   const name = `Mock${klass.name}Type`;
-  const fieldsToRender = determineFieldsToRender(klass);
+  const fieldsToRender = determineFieldsToRender(klass, selectionCatalogue);
   return `type ${name} = {
     ${fieldsToRender
-      .map((field) => `${field.name}: ${renderType(field, parseResult)};`)
+      .map(
+        (field) =>
+          `${field.name}: ${renderType(field, parseResult, undefined, selectionCatalogue)};`
+      )
       .join('\n' + Array(4).fill(' ').join(''))}
   }`;
 }
 
-function renderPickTypes(klass: ClassObject, parseResult: ParseResult): string[] {
+function renderPickTypes(
+  klass: ClassObject,
+  parseResult: ParseResult,
+  selectionCatalogue: SelectionCatalogue
+): string[] {
   if (!klass.operation) return [];
 
   const pickTypes: string[] = [];
   for (const field of klass.outputs) {
-    if (
-      field.type.kind === GQLKind.Object &&
-      !field.fragmentSpreads?.length &&
-      field.selectedFields &&
-      field.selectedFields.length > 0
-    ) {
-      const referencedTypeId = field.type.id;
-      const referencedKlass = parseResult.classes.get(referencedTypeId);
-      if (referencedKlass && referencedKlass.shouldInline && referencedKlass.selectedOutputs) {
-        // Only generate Pick type if selected fields are different from base type's selected outputs
-        const baseTypeFields = referencedKlass.selectedOutputs.map((f) => f.name).sort();
-        const querySelectedFields = [...field.selectedFields].sort();
-        const needsPickType =
-          baseTypeFields.length !== querySelectedFields.length ||
-          !baseTypeFields.every((f, i) => f === querySelectedFields[i]);
+    if (field.type.kind !== GQLKind.Object) {
+      continue;
+    }
 
-        if (needsPickType) {
-          const pickTypeName = getPickTypeName(klass.name, field.name, field.type.name);
-          const baseTypeName = `Mock${field.type.name}Type`;
-          const selectedFieldsStr = field.selectedFields.map((f) => `"${f}"`).join(', ');
-          pickTypes.push(`type ${pickTypeName} = Pick<${baseTypeName}, ${selectedFieldsStr}>;`);
-        }
+    const resolvedField = selectionCatalogue.getResolvedObjectField(field, klass);
+    if (resolvedField?.kind === 'inline-pick') {
+      const pickTypeName = resolvedField.pickTypeName;
+      const referencedKlass = parseResult.classes.get(field.type.id);
+      if (!referencedKlass) {
+        throw new Error(`Unable to find reference to "${field.type.id}" from "${field.name}"`);
       }
+      const baseTypeName = `Mock${referencedKlass.name}Type`;
+      const selectedFieldsStr = resolvedField.selectedFieldNames
+        .map((selectedField) => `"${selectedField}"`)
+        .join(', ');
+      pickTypes.push(`type ${pickTypeName} = Pick<${baseTypeName}, ${selectedFieldsStr}>;`);
     }
   }
   return pickTypes;
@@ -77,29 +82,39 @@ function renderOperationResponseModeSetters(klass: ClassObject): string[] {
   ];
 }
 
-export function renderClass(klass: ClassObject, parseResult: ParseResult): string {
+export function renderClass(
+  klass: ClassObject,
+  parseResult: ParseResult,
+  selectionCatalogue: SelectionCatalogue = buildSelectionCatalogue(parseResult)
+): string {
   if (klass.shouldInline) {
     if (klass.operation) {
       throw new Error(`Attempting to inline operation: ${klass.name}`);
     }
 
-    return renderClassAsType(klass, parseResult);
+    return renderClassAsType(klass, parseResult, selectionCatalogue);
   }
 
   const className = `Mock${klass.name}${klass.operation ?? ''}Builder`;
-  const pickTypes = renderPickTypes(klass, parseResult);
+  const pickTypes = renderPickTypes(klass, parseResult, selectionCatalogue);
 
-  const inputFields = klass.inputs.map((field) => renderField(field, parseResult, klass));
-  const outputFields = klass.outputs.map((field) => renderField(field, parseResult, klass));
-  const responseModeFields = renderOperationResponseModeFields(klass);
-
-  const inputSetters = klass.inputs.map((field) => renderSetter(field, 'for', parseResult, klass));
-  const outputSetters = klass.outputs.map((field) =>
-    renderSetter(field, 'having', parseResult, klass)
+  const inputFields = klass.inputs.map((field) =>
+    renderField(field, parseResult, klass, selectionCatalogue)
   );
+  const outputFields = klass.outputs.map((field) =>
+    renderField(field, parseResult, klass, selectionCatalogue)
+  );
+  const responseModeFields = renderOperationResponseModeFields(klass);
   const responseModeSetters = renderOperationResponseModeSetters(klass);
 
-  const buildMethod = renderBuild(klass, parseResult);
+  const inputSetters = klass.inputs.map((field) =>
+    renderSetter(field, 'for', parseResult, klass, selectionCatalogue)
+  );
+  const outputSetters = klass.outputs.map((field) =>
+    renderSetter(field, 'having', parseResult, klass, selectionCatalogue)
+  );
+
+  const buildMethod = renderBuild(klass, parseResult, selectionCatalogue);
 
   const parts: Array<string> = [
     inputFields.join('\n'),

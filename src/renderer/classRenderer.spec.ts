@@ -483,6 +483,49 @@ describe('classRenderer', () => {
         expect(result).toContain('class MockGetUserQueryBuilder {');
       });
 
+      it('should disambiguate pick types for multiple fields of the same object type', () => {
+        const klass: ClassObject = {
+          id: 'GetTeam:output',
+          name: 'GetTeam',
+          inputs: [],
+          outputs: [
+            {
+              name: 'author',
+              type: { kind: GQLKind.Object, name: 'User', id: 'User:output', nullable: false },
+              selectedFields: ['name'],
+            },
+            {
+              name: 'reviewer',
+              type: { kind: GQLKind.Object, name: 'User', id: 'User:output', nullable: false },
+              selectedFields: ['email'],
+            },
+          ],
+          isInput: false,
+          operation: 'Query',
+        };
+
+        const userClass: ClassObject = {
+          id: 'User:output',
+          name: 'User',
+          inputs: [],
+          outputs: [
+            createSimpleField('id', GQLKind.String),
+            createSimpleField('name', GQLKind.String),
+            createSimpleField('email', GQLKind.String),
+          ],
+          selectedOutputs: [createSimpleField('id', GQLKind.String)],
+          isInput: false,
+          shouldInline: true,
+        };
+
+        parseResult.classes.set('User:output', userClass);
+
+        const result = prettify(renderClass(klass, parseResult));
+
+        expect(result).toContain('type GetTeamUserAuthorType = Pick<MockUserType, "name">;');
+        expect(result).toContain('type GetTeamUserReviewerType = Pick<MockUserType, "email">;');
+      });
+
       it('should not generate pick types when selectedFields match base type selectedOutputs', () => {
         const klass: ClassObject = {
           id: 'GetUser:output',
