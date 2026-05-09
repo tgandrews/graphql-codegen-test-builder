@@ -99,10 +99,9 @@ export function buildSelectionCatalogue(parseResult: ParseResult): SelectionCata
     const baseSelectedFieldNames = sortFieldNames(
       (shape?.selectedFields ?? referencedClass.outputs).map((selectedField) => selectedField.name)
     );
-    const projectedFields = filterFieldsByName(
-      shape?.baseFields ?? referencedClass.outputs,
-      field.selectedFields
-    );
+    const projectedFields = selectedFieldNames.length
+      ? filterFieldsByName(shape?.baseFields ?? referencedClass.outputs, selectedFieldNames)
+      : shape?.selectedFields ?? referencedClass.outputs;
     const schemaTypeName = field.schemaTypeName ?? referencedClass.name;
     const resolvedProjectedFields =
       projectedFields.length > 0

@@ -38,7 +38,13 @@ function renderFragmentOutputField(
       resolvedField.kind === 'inline-pick' ||
       resolvedField.kind === 'user-defined'
     ) {
+      if (field.type.nullable) {
+        return `${field.name}: this.${fieldPath} ?? null`;
+      }
       return `${field.name}: this.${fieldPath}`;
+    }
+    if (field.type.nullable) {
+      return `${field.name}: this.${fieldPath}?.map(item => item.build()) ?? null`;
     }
     return `${field.name}: this.${fieldPath}.map(item => item.build())`;
   }
@@ -49,9 +55,15 @@ function renderFragmentOutputField(
     resolvedField.kind === 'inline-pick' ||
     resolvedField.kind === 'user-defined'
   ) {
+    if (field.type.nullable) {
+      return `${field.name}: this.${fieldPath} ?? null`;
+    }
     return `${field.name}: this.${fieldPath}`;
   }
 
+  if (field.type.nullable) {
+    return `${field.name}: this.${fieldPath}?.build() ?? null`;
+  }
   return `${field.name}: this.${fieldPath}.build()`;
 }
 

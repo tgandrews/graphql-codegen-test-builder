@@ -110,6 +110,12 @@ function renderOutputField(
     if (resolvedField.kind === 'user-defined') {
       const fieldsToRender = resolvedField.projectedFields;
       const itemName = 'item';
+      if (field.type.nullable) {
+        return `${field.name}: this.${itemPath}?.map(${itemName} => ({
+      __typename: '${resolvedField.referencedClass.name}',
+      ${fieldsToRender.map((f) => `${f.name}: ${itemName}.${f.name}`).join(',\n      ')}
+    })) ?? null`;
+      }
       return `${field.name}: this.${itemPath}.map(${itemName} => ({
       __typename: '${resolvedField.referencedClass.name}',
       ${fieldsToRender.map((f) => `${f.name}: ${itemName}.${f.name}`).join(',\n      ')}
@@ -117,9 +123,21 @@ function renderOutputField(
     }
     // For builders, map and call build()
     if (resolvedField.kind === 'builder') {
+      if (field.type.nullable) {
+        return `${field.name}: this.${itemPath}?.map(item => item.build()) ?? null`;
+      }
       return `${field.name}: this.${itemPath}.map(item => item.build())`;
     }
     // For inlined types, map and render inline
+    if (field.type.nullable) {
+      return `${field.name}: this.${itemPath}?.map(item => ${renderBuildObject(
+        resolvedField.referencedClass,
+        parseResult,
+        ['item'],
+        selectedFieldsFilter,
+        selectionCatalogue
+      )}) ?? null`;
+    }
     return `${field.name}: this.${itemPath}.map(item => ${renderBuildObject(
       resolvedField.referencedClass,
       parseResult,
@@ -137,6 +155,9 @@ function renderOutputField(
       selectedFieldsFilter,
       selectionCatalogue
     );
+    if (field.type.nullable) {
+      return `${field.name}: this.${itemPath} == null ? null : ${baseObject}`;
+    }
     return `${field.name}: ${baseObject}`;
   }
 
@@ -148,10 +169,16 @@ function renderOutputField(
       selectedFieldsFilter,
       selectionCatalogue
     );
+    if (field.type.nullable) {
+      return `${field.name}: this.${itemPath} == null ? null : ${baseObject}`;
+    }
     return `${field.name}: ${baseObject}`;
   }
 
   const builtValue = `this.${[...parentPath, field.name].join('.')}.build()`;
+  if (field.type.nullable) {
+    return `${field.name}: this.${itemPath} == null ? null : ${builtValue}`;
+  }
   return `${field.name}: ${builtValue}`;
 }
 

@@ -180,6 +180,56 @@ describe('buildRenderer', () => {
     });
 
     describe('operation classes (queries/mutations)', () => {
+      it('should build nullable non-fragment builder singular object fields safely', () => {
+        const klass: ClassObject = {
+          id: 'GetUser:output',
+          name: 'GetUser',
+          inputs: [],
+          outputs: [createObjectField('user', 'User:output', true)],
+          isInput: false,
+          operation: 'Query',
+        };
+
+        const userClass: ClassObject = {
+          id: 'User:output',
+          name: 'User',
+          inputs: [],
+          outputs: [createSimpleField('name', GQLKind.String)],
+          isInput: false,
+        };
+
+        parseResult.classes.set('User:output', userClass);
+
+        const result = renderBuild(klass, parseResult);
+
+        expect(result).toContain('user: this.user == null ? null : this.user.build()');
+      });
+
+      it('should build nullable non-fragment builder list object fields safely', () => {
+        const klass: ClassObject = {
+          id: 'GetUser:output',
+          name: 'GetUser',
+          inputs: [],
+          outputs: [{ ...createObjectField('users', 'User:output', true), isList: true }],
+          isInput: false,
+          operation: 'Query',
+        };
+
+        const userClass: ClassObject = {
+          id: 'User:output',
+          name: 'User',
+          inputs: [],
+          outputs: [createSimpleField('name', GQLKind.String)],
+          isInput: false,
+        };
+
+        parseResult.classes.set('User:output', userClass);
+
+        const result = renderBuild(klass, parseResult);
+
+        expect(result).toContain('users: this.users?.map(item => item.build()) ?? null');
+      });
+
       it('should render build method for query operation with no variables', () => {
         const klass: ClassObject = {
           id: 'GetUser:output',

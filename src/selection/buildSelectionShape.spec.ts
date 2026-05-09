@@ -130,6 +130,34 @@ describe('buildSelectionCatalogue', () => {
     ).toEqual(['name', 'email']);
   });
 
+  it('uses the selected shape when no explicit field filter is provided', () => {
+    const userClass: ClassObject = {
+      id: 'User:output',
+      name: 'User',
+      inputs: [],
+      outputs: [
+        createSimpleField('id', GQLKind.String),
+        createSimpleField('name', GQLKind.String),
+        createSimpleField('email', GQLKind.String),
+      ],
+      selectedOutputs: [
+        createSimpleField('id', GQLKind.String),
+        createSimpleField('name', GQLKind.String),
+      ],
+      isInput: false,
+      hasMultipleQueries: true,
+    };
+
+    parseResult.classes.set(userClass.id, userClass);
+
+    const catalogue = buildSelectionCatalogue(parseResult);
+
+    expect(catalogue.getFieldsToRender(userClass).map((field) => field.name)).toEqual([
+      'id',
+      'name',
+    ]);
+  });
+
   it('reuses the base generated mock type when selected fields match the selected shape', () => {
     parseResult.classes.set('User:output', {
       id: 'User:output',
