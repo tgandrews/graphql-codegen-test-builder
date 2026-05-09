@@ -1,8 +1,8 @@
 import { FieldValue, GQLKind, GQLType, ParseResult } from '../parser';
-import { buildSelectionCatalogue } from '../selection';
-import { determineFieldsToRender } from './helpers';
 
-type TypeDefMap<T extends GQLKind = GQLKind> = {
+type RenderableKind = Exclude<GQLKind, GQLKind.Object>;
+
+type TypeDefMap<T extends GQLKind = RenderableKind> = {
   [K in T]: {
     renderDefaultValue(
       field: FieldValue & { type: Extract<GQLType, { kind: K }> },
@@ -67,44 +67,6 @@ export const TYPE_DEFS: TypeDefMap = {
     },
     renderType(field) {
       return field.type.name;
-    },
-  },
-  [GQLKind.Object]: {
-    renderDefaultValue(field, parseResult, renderDefaultValueFn) {
-      const referencedTypeId = field.type.id;
-      const klass = parseResult.classes.get(referencedTypeId);
-      if (!klass) {
-        throw new Error(`Unable to find reference to "${referencedTypeId}" from "${field.name}"`);
-      }
-      if (klass.userDefined || klass.shouldInline) {
-        const fieldsToRender = klass.userDefined
-          ? klass.outputs
-          : determineFieldsToRender(klass, buildSelectionCatalogue(parseResult));
-        if (!renderDefaultValueFn) {
-          throw new Error('renderDefaultValueFn is required for Object type');
-        }
-        return `{
-          ${fieldsToRender
-            .map((output) => `${output.name}: ${renderDefaultValueFn(output, parseResult)}`)
-            .join(',\n          ')}
-        }`;
-      }
-      return `new Mock${klass.name}Builder()`;
-    },
-    renderType(field, parseResult) {
-      const referencedTypeId = field.type.id;
-      const klass = parseResult.classes.get(referencedTypeId);
-      if (!klass) {
-        throw new Error(`Unable to find reference to "${referencedTypeId}" from "${field.name}"`);
-      }
-      // User-defined classes should use their imported type name
-      if (klass.userDefined) {
-        return klass.userDefined.exportName || klass.name;
-      }
-      if (klass.shouldInline) {
-        return `Mock${klass.name}Type`;
-      }
-      return `Mock${klass.name}Builder`;
     },
   },
 };

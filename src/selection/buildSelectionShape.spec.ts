@@ -103,6 +103,33 @@ describe('buildSelectionCatalogue', () => {
     expect(resolvedField.projectedFields.map((field) => field.name)).toEqual(['name', 'email']);
   });
 
+  it('uses base fields when filtering an explicit projected field set', () => {
+    const userClass: ClassObject = {
+      id: 'User:output',
+      name: 'User',
+      inputs: [],
+      outputs: [
+        createSimpleField('id', GQLKind.String),
+        createSimpleField('name', GQLKind.String),
+        createSimpleField('email', GQLKind.String),
+      ],
+      selectedOutputs: [
+        createSimpleField('id', GQLKind.String),
+        createSimpleField('name', GQLKind.String),
+      ],
+      isInput: false,
+      hasMultipleQueries: true,
+    };
+
+    parseResult.classes.set(userClass.id, userClass);
+
+    const catalogue = buildSelectionCatalogue(parseResult);
+
+    expect(
+      catalogue.getFieldsToRender(userClass, ['name', 'email']).map((field) => field.name)
+    ).toEqual(['name', 'email']);
+  });
+
   it('reuses the base generated mock type when selected fields match the selected shape', () => {
     parseResult.classes.set('User:output', {
       id: 'User:output',
@@ -251,5 +278,51 @@ describe('buildSelectionCatalogue', () => {
     );
 
     expect(resolvedField?.kind).toBe('builder');
+  });
+
+  it('disambiguates pick type names for different fields of the same object type', () => {
+    parseResult.classes.set('User:output', {
+      id: 'User:output',
+      name: 'User',
+      inputs: [],
+      outputs: [
+        createSimpleField('id', GQLKind.String),
+        createSimpleField('name', GQLKind.String),
+        createSimpleField('email', GQLKind.String),
+      ],
+      selectedOutputs: [createSimpleField('id', GQLKind.String)],
+      isInput: false,
+      shouldInline: true,
+      hasMultipleQueries: true,
+    });
+
+    const operationClass: ClassObject = {
+      id: 'GetTeam:output',
+      name: 'GetTeam',
+      inputs: [],
+      outputs: [
+        createObjectField('author', 'User:output', false, ['name']),
+        createObjectField('reviewer', 'User:output', false, ['email']),
+      ],
+      isInput: false,
+      operation: 'Query',
+    };
+
+    const catalogue = buildSelectionCatalogue(parseResult);
+    const authorField = catalogue.getResolvedObjectField(operationClass.outputs[0], operationClass);
+    const reviewerField = catalogue.getResolvedObjectField(
+      operationClass.outputs[1],
+      operationClass
+    );
+
+    expect(authorField?.kind).toBe('inline-pick');
+    expect(reviewerField?.kind).toBe('inline-pick');
+
+    if (authorField?.kind !== 'inline-pick' || reviewerField?.kind !== 'inline-pick') {
+      throw new Error('Expected inline-pick fields');
+    }
+
+    expect(authorField.pickTypeName).toBe('GetTeamUserAuthorType');
+    expect(reviewerField.pickTypeName).toBe('GetTeamUserReviewerType');
   });
 });

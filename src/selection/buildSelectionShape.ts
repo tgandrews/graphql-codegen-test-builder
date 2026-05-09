@@ -13,6 +13,10 @@ function sortFieldNames(fieldNames: string[]): string[] {
   return [...fieldNames].sort();
 }
 
+function capitalise(fieldName: string): string {
+  return fieldName[0].toUpperCase() + fieldName.slice(1);
+}
+
 function filterFieldsByName(fields: FieldValue[], selectedFieldNames?: string[]): FieldValue[] {
   if (!selectedFieldNames?.length) {
     return fields;
@@ -43,9 +47,15 @@ function buildShape(klass: ClassObject): SelectionShape {
 export function getPickTypeName(
   queryName: string,
   fieldName: string,
-  fieldTypeName: string
+  fieldTypeName: string,
+  disambiguate = false
 ): string {
-  return `${queryName}${fieldTypeName}Type`;
+  if (!disambiguate) {
+    return `${queryName}${fieldTypeName}Type`;
+  }
+
+  const disambiguatedFieldName = capitalise(fieldName);
+  return `${queryName}${fieldTypeName}${disambiguatedFieldName}Type`;
 }
 
 export function buildSelectionCatalogue(parseResult: ParseResult): SelectionCatalogue {
@@ -61,7 +71,11 @@ export function buildSelectionCatalogue(parseResult: ParseResult): SelectionCata
 
   const getFieldsToRender = (klass: ClassObject, selectedFieldNames?: string[]): FieldValue[] => {
     const shape = getSelectionShape(klass.id) ?? buildShape(klass);
-    const baseFields = klass.isInput ? klass.inputs : shape.selectedFields;
+    const baseFields = klass.isInput
+      ? klass.inputs
+      : selectedFieldNames?.length
+      ? shape.baseFields
+      : shape.selectedFields;
     return filterFieldsByName(baseFields, selectedFieldNames);
   };
 
@@ -77,6 +91,7 @@ export function buildSelectionCatalogue(parseResult: ParseResult): SelectionCata
     if (!referencedClass) {
       throw new Error(`Unable to find reference to "${field.type.id}" from "${field.name}"`);
     }
+    const fieldTypeId = field.type.id;
 
     const shape = getSelectionShape(field.type.id);
     const selectedFieldNames = field.selectedFields ?? [];
@@ -93,6 +108,15 @@ export function buildSelectionCatalogue(parseResult: ParseResult): SelectionCata
       projectedFields.length > 0
         ? projectedFields
         : shape?.selectedFields ?? referencedClass.outputs;
+    const queryOutputFields = queryContext?.outputs ?? [];
+    const requiresPickDisambiguation = Boolean(
+      queryOutputFields.filter(
+        (outputField) =>
+          outputField.type.kind === GQLKind.Object &&
+          outputField.type.id === fieldTypeId &&
+          outputField.selectedFields?.length
+      ).length > 1
+    );
     const needsPickType = Boolean(
       queryContext?.operation &&
         referencedClass.shouldInline &&
@@ -158,7 +182,12 @@ export function buildSelectionCatalogue(parseResult: ParseResult): SelectionCata
         referencedClass,
         projectedFields: resolvedProjectedFields,
         selectedFieldNames,
-        pickTypeName: getPickTypeName(queryContext.name, field.name, referencedClass.name),
+        pickTypeName: getPickTypeName(
+          queryContext.name,
+          field.name,
+          referencedClass.name,
+          requiresPickDisambiguation
+        ),
       };
     }
 
