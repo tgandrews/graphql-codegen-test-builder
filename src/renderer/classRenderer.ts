@@ -38,10 +38,7 @@ function renderPickTypes(
     const resolvedField = selectionCatalogue.getResolvedObjectField(field, klass);
     if (resolvedField?.kind === 'inline-pick') {
       const pickTypeName = resolvedField.pickTypeName;
-      const referencedKlass = parseResult.classes.get(field.type.id);
-      if (!referencedKlass) {
-        throw new Error(`Unable to find reference to "${field.type.id}" from "${field.name}"`);
-      }
+      const referencedKlass = parseResult.requireClass(field.type.id);
       const baseTypeName = `Mock${referencedKlass.name}Type`;
       const selectedFieldsStr = resolvedField.selectedFieldNames
         .map((selectedField) => `"${selectedField}"`)

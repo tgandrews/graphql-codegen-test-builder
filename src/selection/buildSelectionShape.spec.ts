@@ -6,7 +6,7 @@ describe('buildSelectionCatalogue', () => {
   let parseResult: ParseResult;
 
   beforeEach(() => {
-    parseResult = new ParseResult({});
+    parseResult = new ParseResult();
   });
 
   const createSimpleField = (name: string, kind: GQLKind, nullable = false): FieldValue => ({
@@ -46,10 +46,10 @@ describe('buildSelectionCatalogue', () => {
       isCompleteSchema: true,
     };
 
-    parseResult.classes.set(userClass.id, userClass);
+    parseResult.addClass(userClass);
 
     const catalogue = buildSelectionCatalogue(parseResult);
-    const shape = catalogue.getSelectionShape(userClass.id);
+    const shape = catalogue.getSelectionShape('User:output');
 
     expect(shape).toEqual({
       typeId: 'User:output',
@@ -62,8 +62,7 @@ describe('buildSelectionCatalogue', () => {
   });
 
   it('computes an operation-specific pick projection when selected fields differ', () => {
-    parseResult.classes.set('User:output', {
-      id: 'User:output',
+    parseResult.addClass({
       name: 'User',
       inputs: [],
       outputs: [
@@ -121,7 +120,7 @@ describe('buildSelectionCatalogue', () => {
       hasMultipleQueries: true,
     };
 
-    parseResult.classes.set(userClass.id, userClass);
+    parseResult.addClass(userClass);
 
     const catalogue = buildSelectionCatalogue(parseResult);
 
@@ -148,7 +147,7 @@ describe('buildSelectionCatalogue', () => {
       hasMultipleQueries: true,
     };
 
-    parseResult.classes.set(userClass.id, userClass);
+    parseResult.addClass(userClass);
 
     const catalogue = buildSelectionCatalogue(parseResult);
 
@@ -159,8 +158,7 @@ describe('buildSelectionCatalogue', () => {
   });
 
   it('reuses the base generated mock type when selected fields match the selected shape', () => {
-    parseResult.classes.set('User:output', {
-      id: 'User:output',
+    parseResult.addClass({
       name: 'User',
       inputs: [],
       outputs: [createSimpleField('id', GQLKind.String), createSimpleField('name', GQLKind.String)],
@@ -191,8 +189,7 @@ describe('buildSelectionCatalogue', () => {
   });
 
   it('preserves fragment-backed field metadata in projections', () => {
-    parseResult.classes.set('Profile:output', {
-      id: 'Profile:output',
+    parseResult.addClass({
       name: 'Profile',
       inputs: [],
       outputs: [createSimpleField('bio', GQLKind.String)],
@@ -219,8 +216,7 @@ describe('buildSelectionCatalogue', () => {
   });
 
   it('does not generate pick projections for user-defined classes', () => {
-    parseResult.classes.set('User:output', {
-      id: 'User:output',
+    parseResult.addClass({
       name: 'User',
       inputs: [],
       outputs: [
@@ -256,8 +252,7 @@ describe('buildSelectionCatalogue', () => {
   });
 
   it('resolves selection-builder fields', () => {
-    parseResult.classes.set('UserSelection:output', {
-      id: 'UserSelection:output',
+    parseResult.addClass({
       name: 'UserSelection',
       inputs: [],
       outputs: [createSimpleField('name', GQLKind.String)],
@@ -274,8 +269,7 @@ describe('buildSelectionCatalogue', () => {
   });
 
   it('resolves inline input fields', () => {
-    parseResult.classes.set('Filter:input', {
-      id: 'Filter:input',
+    parseResult.addClass({
       name: 'Filter',
       inputs: [createSimpleField('name', GQLKind.String)],
       outputs: [],
@@ -292,8 +286,7 @@ describe('buildSelectionCatalogue', () => {
   });
 
   it('resolves builder fields', () => {
-    parseResult.classes.set('User:output', {
-      id: 'User:output',
+    parseResult.addClass({
       name: 'User',
       inputs: [],
       outputs: [createSimpleField('name', GQLKind.String)],
@@ -309,8 +302,7 @@ describe('buildSelectionCatalogue', () => {
   });
 
   it('disambiguates pick type names for different fields of the same object type', () => {
-    parseResult.classes.set('User:output', {
-      id: 'User:output',
+    parseResult.addClass({
       name: 'User',
       inputs: [],
       outputs: [

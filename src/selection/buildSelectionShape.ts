@@ -61,7 +61,7 @@ export function getPickTypeName(
 export function buildSelectionCatalogue(parseResult: ParseResult): SelectionCatalogue {
   const shapes = new Map<string, SelectionShape>();
 
-  for (const klass of parseResult.classes.values()) {
+  for (const klass of parseResult.getClasses()) {
     shapes.set(klass.id, buildShape(klass));
   }
 
@@ -87,10 +87,7 @@ export function buildSelectionCatalogue(parseResult: ParseResult): SelectionCata
       return undefined;
     }
 
-    const referencedClass = parseResult.classes.get(field.type.id);
-    if (!referencedClass) {
-      throw new Error(`Unable to find reference to "${field.type.id}" from "${field.name}"`);
-    }
+    const referencedClass = parseResult.requireClass(field.type.id);
     const fieldTypeId = field.type.id;
 
     const shape = getSelectionShape(field.type.id);

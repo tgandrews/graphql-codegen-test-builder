@@ -9,11 +9,11 @@ const render = (parseResult: ParseResult): string => {
   const fragments: string[] = [];
   const classes: string[] = [];
 
-  parseResult.fragments.forEach((fragment) => {
+  parseResult.getFragments().forEach((fragment) => {
     fragments.push(renderFragment(fragment, parseResult, selectionCatalogue));
   });
 
-  parseResult.classes.forEach((klass) => {
+  parseResult.getClasses().forEach((klass) => {
     // Generate import statements for user-defined classes
     if (klass.userDefined) {
       const exportName = klass.userDefined.exportName;

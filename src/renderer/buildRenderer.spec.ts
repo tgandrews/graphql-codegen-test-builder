@@ -6,7 +6,7 @@ describe('buildRenderer', () => {
   let parseResult: ParseResult;
 
   beforeEach(() => {
-    parseResult = new ParseResult({});
+    parseResult = new ParseResult();
   });
 
   const createSimpleField = (name: string, kind: GQLKind, nullable = false): FieldValue => ({
@@ -66,7 +66,7 @@ describe('buildRenderer', () => {
           isInput: false,
         };
 
-        parseResult.classes.set('Profile:output', profileClass);
+        parseResult.addClass(profileClass);
 
         const result = renderBuild(userClass, parseResult);
 
@@ -100,7 +100,7 @@ describe('buildRenderer', () => {
           shouldInline: true,
         };
 
-        parseResult.classes.set('Profile:output', profileClass);
+        parseResult.addClass(profileClass);
 
         const result = renderBuild(userClass, parseResult);
 
@@ -123,7 +123,7 @@ describe('buildRenderer', () => {
           inputs: [],
           outputs: [
             createSimpleField('name', GQLKind.String),
-            createObjectField('settings', 'Settings:output'),
+            createObjectField('settings', 'Settings:input'),
           ],
           isInput: false,
         };
@@ -137,7 +137,7 @@ describe('buildRenderer', () => {
           shouldInline: true,
         };
 
-        parseResult.classes.set('Settings:output', settingsClass);
+        parseResult.addClass(settingsClass);
 
         const result = renderBuild(userClass, parseResult);
 
@@ -198,7 +198,7 @@ describe('buildRenderer', () => {
           isInput: false,
         };
 
-        parseResult.classes.set('User:output', userClass);
+        parseResult.addClass(userClass);
 
         const result = renderBuild(klass, parseResult);
 
@@ -223,7 +223,7 @@ describe('buildRenderer', () => {
           isInput: false,
         };
 
-        parseResult.classes.set('User:output', userClass);
+        parseResult.addClass(userClass);
 
         const result = renderBuild(klass, parseResult);
 
@@ -248,7 +248,7 @@ describe('buildRenderer', () => {
           isInput: false,
         };
 
-        parseResult.classes.set('User:output', userClass);
+        parseResult.addClass(userClass);
 
         const result = renderBuild(klass, parseResult);
 
@@ -283,7 +283,7 @@ describe('buildRenderer', () => {
           isInput: false,
         };
 
-        parseResult.classes.set('User:output', userClass);
+        parseResult.addClass(userClass);
 
         const result = renderBuild(klass, parseResult);
 
@@ -317,7 +317,7 @@ describe('buildRenderer', () => {
           isInput: false,
         };
 
-        parseResult.classes.set('User:output', userClass);
+        parseResult.addClass(userClass);
 
         const result = renderBuild(klass, parseResult);
 
@@ -358,7 +358,7 @@ describe('buildRenderer', () => {
           isInput: false,
         };
 
-        parseResult.classes.set('User:output', userClass);
+        parseResult.addClass(userClass);
 
         const result = renderBuild(klass, parseResult);
 
@@ -387,8 +387,7 @@ describe('buildRenderer', () => {
           operation: 'Query',
         };
 
-        parseResult.classes.set('User:output', {
-          id: 'User:output',
+        parseResult.addClass({
           name: 'User',
           inputs: [],
           outputs: [
@@ -402,8 +401,7 @@ describe('buildRenderer', () => {
             createSimpleField('email', GQLKind.String),
           ],
         });
-        parseResult.fragments.set('UserSummary', {
-          id: 'UserSummary',
+        parseResult.addFragment({
           name: 'UserSummary',
           typeName: 'User',
           outputs: [
@@ -439,8 +437,7 @@ describe('buildRenderer', () => {
           operation: 'Query',
         };
 
-        parseResult.classes.set('User:output', {
-          id: 'User:output',
+        parseResult.addClass({
           name: 'User',
           inputs: [],
           outputs: [createSimpleField('name', GQLKind.String)],
@@ -448,8 +445,7 @@ describe('buildRenderer', () => {
           shouldInline: true,
           selectedOutputs: [createSimpleField('name', GQLKind.String)],
         });
-        parseResult.fragments.set('UserSummary', {
-          id: 'UserSummary',
+        parseResult.addFragment({
           name: 'UserSummary',
           typeName: 'User',
           outputs: [createSimpleField('name', GQLKind.String)],
@@ -484,8 +480,7 @@ describe('buildRenderer', () => {
           operation: 'Query',
         };
 
-        parseResult.classes.set('GetUserUserSelection:output', {
-          id: 'GetUserUserSelection:output',
+        parseResult.addClass({
           name: 'GetUserUserSelection',
           inputs: [],
           outputs: [
@@ -520,8 +515,7 @@ describe('buildRenderer', () => {
           operation: 'Query',
         };
 
-        parseResult.classes.set('User:output', {
-          id: 'User:output',
+        parseResult.addClass({
           name: 'User',
           inputs: [],
           outputs: [createSimpleField('name', GQLKind.String)],
@@ -529,8 +523,7 @@ describe('buildRenderer', () => {
           shouldInline: true,
           selectedOutputs: [createSimpleField('name', GQLKind.String)],
         });
-        parseResult.fragments.set('UserSummary', {
-          id: 'UserSummary',
+        parseResult.addFragment({
           name: 'UserSummary',
           typeName: 'User',
           outputs: [createSimpleField('name', GQLKind.String)],
@@ -561,8 +554,7 @@ describe('buildRenderer', () => {
           operation: 'Query',
         };
 
-        parseResult.classes.set('User:output', {
-          id: 'User:output',
+        parseResult.addClass({
           name: 'User',
           inputs: [],
           outputs: [createSimpleField('name', GQLKind.String)],
@@ -570,8 +562,7 @@ describe('buildRenderer', () => {
           shouldInline: true,
           selectedOutputs: [createSimpleField('name', GQLKind.String)],
         });
-        parseResult.fragments.set('UserSummary', {
-          id: 'UserSummary',
+        parseResult.addFragment({
           name: 'UserSummary',
           typeName: 'User',
           outputs: [createSimpleField('name', GQLKind.String)],
@@ -596,7 +587,7 @@ describe('buildRenderer', () => {
         };
 
         expect(() => renderBuild(klass, parseResult)).toThrow(
-          'Unable to find reference to "NonExistent:output" from "profile"'
+          'Unable to find class: NonExistent:output'
         );
       });
     });
@@ -646,9 +637,9 @@ describe('buildRenderer', () => {
           isInput: false,
         };
 
-        parseResult.classes.set('Profile:output', profileClass);
-        parseResult.classes.set('Avatar:output', avatarClass);
-        parseResult.classes.set('Address:output', addressClass);
+        parseResult.addClass(profileClass);
+        parseResult.addClass(avatarClass);
+        parseResult.addClass(addressClass);
 
         const result = renderBuild(userClass, parseResult);
 

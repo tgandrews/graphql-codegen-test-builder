@@ -7,7 +7,7 @@ describe('fragmentRenderer', () => {
   let parseResult: ParseResult;
 
   beforeEach(() => {
-    parseResult = new ParseResult({});
+    parseResult = new ParseResult();
   });
 
   const createSimpleField = (name: string, kind: GQLKind, nullable = false): FieldValue => ({
@@ -53,8 +53,7 @@ describe('fragmentRenderer', () => {
   });
 
   it('should build nested fragment-backed object fields inside fragment builders', () => {
-    parseResult.classes.set('Profile:output', {
-      id: 'Profile:output',
+    parseResult.addClass({
       name: 'Profile',
       inputs: [],
       outputs: [createSimpleField('bio', GQLKind.String)],
@@ -62,8 +61,7 @@ describe('fragmentRenderer', () => {
       shouldInline: true,
       selectedOutputs: [createSimpleField('bio', GQLKind.String)],
     });
-    parseResult.fragments.set('ProfileSummary', {
-      id: 'ProfileSummary',
+    parseResult.addFragment({
       name: 'ProfileSummary',
       typeName: 'Profile',
       outputs: [createSimpleField('bio', GQLKind.String)],
@@ -91,8 +89,7 @@ describe('fragmentRenderer', () => {
   });
 
   it('should build nullable nested fragment-backed singular fields safely', () => {
-    parseResult.classes.set('Profile:output', {
-      id: 'Profile:output',
+    parseResult.addClass({
       name: 'Profile',
       inputs: [],
       outputs: [createSimpleField('bio', GQLKind.String)],
@@ -100,8 +97,7 @@ describe('fragmentRenderer', () => {
       shouldInline: true,
       selectedOutputs: [createSimpleField('bio', GQLKind.String)],
     });
-    parseResult.fragments.set('ProfileSummary', {
-      id: 'ProfileSummary',
+    parseResult.addFragment({
       name: 'ProfileSummary',
       typeName: 'Profile',
       outputs: [createSimpleField('bio', GQLKind.String)],
@@ -127,8 +123,7 @@ describe('fragmentRenderer', () => {
   });
 
   it('should build nullable nested fragment-backed list fields safely', () => {
-    parseResult.classes.set('Profile:output', {
-      id: 'Profile:output',
+    parseResult.addClass({
       name: 'Profile',
       inputs: [],
       outputs: [createSimpleField('bio', GQLKind.String)],
@@ -136,8 +131,7 @@ describe('fragmentRenderer', () => {
       shouldInline: true,
       selectedOutputs: [createSimpleField('bio', GQLKind.String)],
     });
-    parseResult.fragments.set('ProfileSummary', {
-      id: 'ProfileSummary',
+    parseResult.addFragment({
       name: 'ProfileSummary',
       typeName: 'Profile',
       outputs: [createSimpleField('bio', GQLKind.String)],
@@ -164,8 +158,7 @@ describe('fragmentRenderer', () => {
   });
 
   it('should build nullable non-fragment builder singular fields safely', () => {
-    parseResult.classes.set('Profile:output', {
-      id: 'Profile:output',
+    parseResult.addClass({
       name: 'Profile',
       inputs: [],
       outputs: [createSimpleField('bio', GQLKind.String)],
@@ -190,8 +183,7 @@ describe('fragmentRenderer', () => {
   });
 
   it('should build nullable non-fragment builder list fields safely', () => {
-    parseResult.classes.set('Profile:output', {
-      id: 'Profile:output',
+    parseResult.addClass({
       name: 'Profile',
       inputs: [],
       outputs: [createSimpleField('bio', GQLKind.String)],
