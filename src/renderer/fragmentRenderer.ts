@@ -1,7 +1,6 @@
 import { FieldValue, FragmentObject, GQLKind, ParseResult } from '../parser';
 import { buildSelectionCatalogue, SelectionCatalogue } from '../selection';
 import { renderField, renderSetter } from './fieldRenderer';
-import { isFragmentBackedField } from './typeRenderer';
 
 function renderFragmentOutputField(
   field: FieldValue,
@@ -14,12 +13,12 @@ function renderFragmentOutputField(
     return `${field.name}: this.${fieldPath}`;
   }
 
-  const strategy = selectionCatalogue.getObjectFieldStrategy(field);
-  if (!strategy) {
-    throw new Error(`Unable to resolve object field strategy for "${field.name}"`);
+  const resolvedField = selectionCatalogue.getResolvedObjectField(field);
+  if (!resolvedField) {
+    throw new Error(`Unable to resolve object field for "${field.name}"`);
   }
 
-  if (isFragmentBackedField(field)) {
+  if (resolvedField.kind === 'fragment-backed') {
     if (field.isList) {
       if (field.type.nullable) {
         return `${field.name}: this.${fieldPath}?.map(item => item.build()) ?? null`;
@@ -33,13 +32,23 @@ function renderFragmentOutputField(
   }
 
   if (field.isList) {
-    if (strategy.shouldInline || strategy.isUserDefined) {
+    if (
+      resolvedField.kind === 'inline' ||
+      resolvedField.kind === 'inline-input' ||
+      resolvedField.kind === 'inline-pick' ||
+      resolvedField.kind === 'user-defined'
+    ) {
       return `${field.name}: this.${fieldPath}`;
     }
     return `${field.name}: this.${fieldPath}.map(item => item.build())`;
   }
 
-  if (strategy.shouldInline || strategy.isUserDefined) {
+  if (
+    resolvedField.kind === 'inline' ||
+    resolvedField.kind === 'inline-input' ||
+    resolvedField.kind === 'inline-pick' ||
+    resolvedField.kind === 'user-defined'
+  ) {
     return `${field.name}: this.${fieldPath}`;
   }
 

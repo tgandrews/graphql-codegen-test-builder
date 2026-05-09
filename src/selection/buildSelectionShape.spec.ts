@@ -90,11 +90,17 @@ describe('buildSelectionCatalogue', () => {
     };
 
     const catalogue = buildSelectionCatalogue(parseResult);
-    const projection = catalogue.getFieldProjection(operationClass.outputs[0], operationClass);
+    const resolvedField = catalogue.getResolvedObjectField(
+      operationClass.outputs[0],
+      operationClass
+    );
 
-    expect(projection?.needsPickType).toBe(true);
-    expect(projection?.projectionTypeName).toBe('GetUserUserType');
-    expect(projection?.projectedFields.map((field) => field.name)).toEqual(['name', 'email']);
+    expect(resolvedField?.kind).toBe('inline-pick');
+    if (resolvedField?.kind !== 'inline-pick') {
+      throw new Error('Expected inline-pick');
+    }
+    expect(resolvedField.pickTypeName).toBe('GetUserUserType');
+    expect(resolvedField.projectedFields.map((field) => field.name)).toEqual(['name', 'email']);
   });
 
   it('reuses the base generated mock type when selected fields match the selected shape', () => {
@@ -121,10 +127,12 @@ describe('buildSelectionCatalogue', () => {
     };
 
     const catalogue = buildSelectionCatalogue(parseResult);
-    const projection = catalogue.getFieldProjection(operationClass.outputs[0], operationClass);
+    const resolvedField = catalogue.getResolvedObjectField(
+      operationClass.outputs[0],
+      operationClass
+    );
 
-    expect(projection?.needsPickType).toBe(false);
-    expect(projection?.projectionTypeName).toBeUndefined();
+    expect(resolvedField?.kind).toBe('inline');
   });
 
   it('preserves fragment-backed field metadata in projections', () => {
@@ -146,11 +154,13 @@ describe('buildSelectionCatalogue', () => {
       ['ProfileSummary']
     );
     const catalogue = buildSelectionCatalogue(parseResult);
-    const projection = catalogue.getFieldProjection(field);
+    const resolvedField = catalogue.getResolvedObjectField(field);
 
-    expect(projection?.isFragmentBacked).toBe(true);
-    expect(projection?.fragmentSpreads).toEqual(['ProfileSummary']);
-    expect(projection?.needsPickType).toBe(false);
+    expect(resolvedField?.kind).toBe('fragment-backed');
+    if (resolvedField?.kind !== 'fragment-backed') {
+      throw new Error('Expected fragment-backed');
+    }
+    expect(resolvedField.fragmentSpreads).toEqual(['ProfileSummary']);
   });
 
   it('does not generate pick projections for user-defined classes', () => {
@@ -182,9 +192,64 @@ describe('buildSelectionCatalogue', () => {
     };
 
     const catalogue = buildSelectionCatalogue(parseResult);
-    const projection = catalogue.getFieldProjection(operationClass.outputs[0], operationClass);
+    const resolvedField = catalogue.getResolvedObjectField(
+      operationClass.outputs[0],
+      operationClass
+    );
 
-    expect(projection?.needsPickType).toBe(false);
-    expect(projection?.projectionTypeName).toBeUndefined();
+    expect(resolvedField?.kind).toBe('user-defined');
+  });
+
+  it('resolves selection-builder fields', () => {
+    parseResult.classes.set('UserSelection:output', {
+      id: 'UserSelection:output',
+      name: 'UserSelection',
+      inputs: [],
+      outputs: [createSimpleField('name', GQLKind.String)],
+      isInput: false,
+      isSelectionBuilder: true,
+    });
+
+    const catalogue = buildSelectionCatalogue(parseResult);
+    const resolvedField = catalogue.getResolvedObjectField(
+      createObjectField('user', 'UserSelection:output')
+    );
+
+    expect(resolvedField?.kind).toBe('selection-builder');
+  });
+
+  it('resolves inline input fields', () => {
+    parseResult.classes.set('Filter:input', {
+      id: 'Filter:input',
+      name: 'Filter',
+      inputs: [createSimpleField('name', GQLKind.String)],
+      outputs: [],
+      isInput: true,
+      shouldInline: true,
+    });
+
+    const catalogue = buildSelectionCatalogue(parseResult);
+    const resolvedField = catalogue.getResolvedObjectField(
+      createObjectField('filter', 'Filter:input')
+    );
+
+    expect(resolvedField?.kind).toBe('inline-input');
+  });
+
+  it('resolves builder fields', () => {
+    parseResult.classes.set('User:output', {
+      id: 'User:output',
+      name: 'User',
+      inputs: [],
+      outputs: [createSimpleField('name', GQLKind.String)],
+      isInput: false,
+    });
+
+    const catalogue = buildSelectionCatalogue(parseResult);
+    const resolvedField = catalogue.getResolvedObjectField(
+      createObjectField('user', 'User:output')
+    );
+
+    expect(resolvedField?.kind).toBe('builder');
   });
 });

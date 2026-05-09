@@ -35,19 +35,15 @@ function renderPickTypes(
       continue;
     }
 
-    const projection = selectionCatalogue.getFieldProjection(field, klass);
-    if (
-      projection?.needsPickType &&
-      projection.projectionTypeName &&
-      projection.selectedFieldNames
-    ) {
-      const pickTypeName = projection.projectionTypeName;
+    const resolvedField = selectionCatalogue.getResolvedObjectField(field, klass);
+    if (resolvedField?.kind === 'inline-pick') {
+      const pickTypeName = resolvedField.pickTypeName;
       const referencedKlass = parseResult.classes.get(field.type.id);
       if (!referencedKlass) {
         throw new Error(`Unable to find reference to "${field.type.id}" from "${field.name}"`);
       }
       const baseTypeName = `Mock${referencedKlass.name}Type`;
-      const selectedFieldsStr = projection.selectedFieldNames
+      const selectedFieldsStr = resolvedField.selectedFieldNames
         .map((selectedField) => `"${selectedField}"`)
         .join(', ');
       pickTypes.push(`type ${pickTypeName} = Pick<${baseTypeName}, ${selectedFieldsStr}>;`);

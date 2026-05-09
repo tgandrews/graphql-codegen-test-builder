@@ -40,17 +40,17 @@ function renderOutputField(
     return `${field.name}: this.${[...parentPath, field.name].join('.')}`; // No need to call build() for non-object types
   }
 
-  const strategy = selectionCatalogue.getObjectFieldStrategy(field);
-  if (!strategy) {
-    throw new Error(`Unable to resolve object field strategy for "${field.name}"`);
+  const resolvedField = selectionCatalogue.getResolvedObjectField(field);
+  if (!resolvedField) {
+    throw new Error(`Unable to resolve object field for "${field.name}"`);
   }
-  if (strategy.isInlineInput) {
+  if (resolvedField.kind === 'inline-input') {
     return `${field.name}: this.${[...parentPath, field.name].join('.')}`;
   }
 
   const itemPath = [...parentPath, field.name].join('.');
-  const schemaTypeName = strategy.schemaTypeName;
-  if (strategy.isSelectionBuilder) {
+  const schemaTypeName = resolvedField.schemaTypeName;
+  if (resolvedField.kind === 'selection-builder') {
     if (field.isList) {
       if (field.type.nullable) {
         return `${field.name}: this.${itemPath}?.map(item => ({
@@ -77,7 +77,7 @@ function renderOutputField(
     }`;
   }
 
-  if (strategy.isFragmentBacked) {
+  if (resolvedField.kind === 'fragment-backed') {
     if (field.isList) {
       if (field.type.nullable) {
         return `${field.name}: this.${itemPath}?.map(item => ({
@@ -107,21 +107,21 @@ function renderOutputField(
   // Handle arrays
   if (field.isList) {
     // For user-defined classes, map and extract fields
-    if (strategy.isUserDefined) {
-      const fieldsToRender = strategy.projectedFields;
+    if (resolvedField.kind === 'user-defined') {
+      const fieldsToRender = resolvedField.projectedFields;
       const itemName = 'item';
       return `${field.name}: this.${itemPath}.map(${itemName} => ({
-      __typename: '${strategy.referencedClass.name}',
+      __typename: '${resolvedField.referencedClass.name}',
       ${fieldsToRender.map((f) => `${f.name}: ${itemName}.${f.name}`).join(',\n      ')}
     }))`;
     }
     // For builders, map and call build()
-    if (!strategy.shouldInline) {
+    if (resolvedField.kind === 'builder') {
       return `${field.name}: this.${itemPath}.map(item => item.build())`;
     }
     // For inlined types, map and render inline
     return `${field.name}: this.${itemPath}.map(item => ${renderBuildObject(
-      strategy.referencedClass,
+      resolvedField.referencedClass,
       parseResult,
       ['item'],
       selectedFieldsFilter,
@@ -129,9 +129,9 @@ function renderOutputField(
     )})`;
   }
 
-  if (strategy.isUserDefined) {
+  if (resolvedField.kind === 'user-defined') {
     const baseObject = renderBuildObject(
-      strategy.referencedClass,
+      resolvedField.referencedClass,
       parseResult,
       [...parentPath, field.name],
       selectedFieldsFilter,
@@ -140,9 +140,9 @@ function renderOutputField(
     return `${field.name}: ${baseObject}`;
   }
 
-  if (strategy.shouldInline) {
+  if (resolvedField.kind === 'inline' || resolvedField.kind === 'inline-pick') {
     const baseObject = renderBuildObject(
-      strategy.referencedClass,
+      resolvedField.referencedClass,
       parseResult,
       [...parentPath, field.name],
       selectedFieldsFilter,

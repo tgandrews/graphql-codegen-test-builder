@@ -1,5 +1,5 @@
 import { ClassObject, FieldValue, GQLKind, ParseResult } from '../parser';
-import { FieldProjection, ObjectFieldStrategy, SelectionCatalogue, SelectionShape } from './types';
+import { ResolvedObjectField, SelectionCatalogue, SelectionShape } from './types';
 
 function areSameFieldNames(left: string[], right: string[]): boolean {
   if (left.length !== right.length) {
@@ -65,10 +65,10 @@ export function buildSelectionCatalogue(parseResult: ParseResult): SelectionCata
     return filterFieldsByName(baseFields, selectedFieldNames);
   };
 
-  const getFieldProjection = (
+  const getResolvedObjectField = (
     field: FieldValue,
     queryContext?: ClassObject
-  ): FieldProjection | undefined => {
+  ): ResolvedObjectField | undefined => {
     if (field.type.kind !== GQLKind.Object) {
       return undefined;
     }
@@ -79,7 +79,8 @@ export function buildSelectionCatalogue(parseResult: ParseResult): SelectionCata
     }
 
     const shape = getSelectionShape(field.type.id);
-    const selectedFieldNames = sortFieldNames(field.selectedFields ?? []);
+    const selectedFieldNames = field.selectedFields ?? [];
+    const sortedSelectedFieldNames = sortFieldNames(selectedFieldNames);
     const baseSelectedFieldNames = sortFieldNames(
       (shape?.selectedFields ?? referencedClass.outputs).map((selectedField) => selectedField.name)
     );
@@ -87,71 +88,104 @@ export function buildSelectionCatalogue(parseResult: ParseResult): SelectionCata
       shape?.baseFields ?? referencedClass.outputs,
       field.selectedFields
     );
-    const isFragmentBacked = Boolean(field.fragmentSpreads?.length);
+    const schemaTypeName = field.schemaTypeName ?? referencedClass.name;
+    const resolvedProjectedFields =
+      projectedFields.length > 0
+        ? projectedFields
+        : shape?.selectedFields ?? referencedClass.outputs;
     const needsPickType = Boolean(
       queryContext?.operation &&
         referencedClass.shouldInline &&
         !referencedClass.userDefined &&
-        !isFragmentBacked &&
-        selectedFieldNames.length > 0 &&
-        !areSameFieldNames(baseSelectedFieldNames, selectedFieldNames)
+        !field.fragmentSpreads?.length &&
+        sortedSelectedFieldNames.length > 0 &&
+        !areSameFieldNames(baseSelectedFieldNames, sortedSelectedFieldNames)
     );
 
+    if (field.fragmentSpreads?.length) {
+      return {
+        kind: 'fragment-backed',
+        fieldName: field.name,
+        fieldTypeId: field.type.id,
+        schemaTypeName,
+        referencedClass,
+        projectedFields: resolvedProjectedFields,
+        fragmentSpreads: field.fragmentSpreads,
+      };
+    }
+
+    if (referencedClass.isSelectionBuilder) {
+      return {
+        kind: 'selection-builder',
+        fieldName: field.name,
+        fieldTypeId: field.type.id,
+        schemaTypeName,
+        referencedClass,
+        projectedFields: resolvedProjectedFields,
+      };
+    }
+
+    if (referencedClass.userDefined) {
+      return {
+        kind: 'user-defined',
+        fieldName: field.name,
+        fieldTypeId: field.type.id,
+        schemaTypeName,
+        referencedClass: referencedClass as ClassObject & {
+          userDefined: NonNullable<ClassObject['userDefined']>;
+        },
+        projectedFields: resolvedProjectedFields,
+      };
+    }
+
+    if (referencedClass.shouldInline && referencedClass.isInput) {
+      return {
+        kind: 'inline-input',
+        fieldName: field.name,
+        fieldTypeId: field.type.id,
+        schemaTypeName,
+        referencedClass,
+        projectedFields: resolvedProjectedFields,
+      };
+    }
+
+    if (referencedClass.shouldInline && queryContext && needsPickType) {
+      return {
+        kind: 'inline-pick',
+        fieldName: field.name,
+        fieldTypeId: field.type.id,
+        schemaTypeName,
+        referencedClass,
+        projectedFields: resolvedProjectedFields,
+        selectedFieldNames,
+        pickTypeName: getPickTypeName(queryContext.name, field.name, referencedClass.name),
+      };
+    }
+
+    if (referencedClass.shouldInline) {
+      return {
+        kind: 'inline',
+        fieldName: field.name,
+        fieldTypeId: field.type.id,
+        schemaTypeName,
+        referencedClass,
+        projectedFields: resolvedProjectedFields,
+      };
+    }
+
     return {
+      kind: 'builder',
       fieldName: field.name,
       fieldTypeId: field.type.id,
-      schemaTypeName: field.schemaTypeName,
-      selectedFieldNames: field.selectedFields,
-      fragmentSpreads: field.fragmentSpreads,
-      requiresSyntheticSelectionBuilder: Boolean(referencedClass.isSelectionBuilder),
-      projectionTypeName:
-        queryContext && needsPickType
-          ? getPickTypeName(queryContext.name, field.name, referencedClass.name)
-          : undefined,
-      projectedFields:
-        projectedFields.length > 0
-          ? projectedFields
-          : shape?.selectedFields ?? referencedClass.outputs,
-      isFragmentBacked,
-      needsPickType,
-    };
-  };
-
-  const getObjectFieldStrategy = (
-    field: FieldValue,
-    queryContext?: ClassObject
-  ): ObjectFieldStrategy | undefined => {
-    const projection = getFieldProjection(field, queryContext);
-    if (!projection) {
-      return undefined;
-    }
-
-    const referencedClass = parseResult.classes.get(projection.fieldTypeId);
-    if (!referencedClass) {
-      throw new Error(
-        `Unable to find reference to "${projection.fieldTypeId}" from "${field.name}"`
-      );
-    }
-
-    return {
-      fieldName: projection.fieldName,
-      fieldPathTypeId: projection.fieldTypeId,
+      schemaTypeName,
       referencedClass,
-      schemaTypeName: projection.schemaTypeName ?? referencedClass.name,
-      projectedFields: projection.projectedFields,
-      isFragmentBacked: projection.isFragmentBacked,
-      fragmentSpreads: projection.fragmentSpreads,
-      isSelectionBuilder: projection.requiresSyntheticSelectionBuilder,
-      isUserDefined: Boolean(referencedClass.userDefined),
-      shouldInline: Boolean(referencedClass.shouldInline),
-      isInlineInput: Boolean(referencedClass.shouldInline && referencedClass.isInput),
+      projectedFields: resolvedProjectedFields,
     };
   };
 
   return {
     getSelectionShape,
     getFieldsToRender,
-    getFieldProjection,
-    getObjectFieldStrategy,
+    getResolvedObjectField,
   };
 }

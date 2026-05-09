@@ -9,39 +9,48 @@ export type SelectionShape = {
   isCompleteSchema: boolean;
 };
 
-export type FieldProjection = {
+type ResolvedObjectFieldBase = {
   fieldName: string;
   fieldTypeId: string;
-  schemaTypeName?: string;
-  selectedFieldNames?: string[];
-  fragmentSpreads?: string[];
-  requiresSyntheticSelectionBuilder: boolean;
-  projectionTypeName?: string;
+  schemaTypeName: string;
+  referencedClass: ClassObject;
   projectedFields: FieldValue[];
-  isFragmentBacked: boolean;
-  needsPickType: boolean;
 };
 
-export type ObjectFieldStrategy = {
-  fieldName: string;
-  fieldPathTypeId: string;
-  referencedClass: ClassObject;
-  schemaTypeName: string;
-  projectedFields: FieldValue[];
-  isFragmentBacked: boolean;
-  fragmentSpreads?: string[];
-  isSelectionBuilder: boolean;
-  isUserDefined: boolean;
-  shouldInline: boolean;
-  isInlineInput: boolean;
-};
+export type ResolvedObjectField =
+  | (ResolvedObjectFieldBase & {
+      kind: 'fragment-backed';
+      fragmentSpreads: string[];
+    })
+  | (ResolvedObjectFieldBase & {
+      kind: 'selection-builder';
+    })
+  | (ResolvedObjectFieldBase & {
+      kind: 'user-defined';
+      referencedClass: ClassObject & {
+        userDefined: NonNullable<ClassObject['userDefined']>;
+      };
+    })
+  | (ResolvedObjectFieldBase & {
+      kind: 'inline-input';
+    })
+  | (ResolvedObjectFieldBase & {
+      kind: 'inline';
+    })
+  | (ResolvedObjectFieldBase & {
+      kind: 'inline-pick';
+      selectedFieldNames: string[];
+      pickTypeName: string;
+    })
+  | (ResolvedObjectFieldBase & {
+      kind: 'builder';
+    });
 
 export type SelectionCatalogue = {
   getSelectionShape(typeId: string): SelectionShape | undefined;
   getFieldsToRender(klass: ClassObject, selectedFieldNames?: string[]): FieldValue[];
-  getFieldProjection(field: FieldValue, queryContext?: ClassObject): FieldProjection | undefined;
-  getObjectFieldStrategy(
+  getResolvedObjectField(
     field: FieldValue,
     queryContext?: ClassObject
-  ): ObjectFieldStrategy | undefined;
+  ): ResolvedObjectField | undefined;
 };

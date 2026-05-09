@@ -56,19 +56,31 @@ export function renderType(
   }
 
   if (field.type.kind === GQLKind.Object) {
-    const strategy = selectionCatalogue.getObjectFieldStrategy(field, queryContext);
-    if (!strategy) {
-      throw new Error(`Unable to resolve object field strategy for "${field.name}"`);
+    const resolvedField = selectionCatalogue.getResolvedObjectField(field, queryContext);
+    if (!resolvedField) {
+      throw new Error(`Unable to resolve object field for "${field.name}"`);
     }
 
     let baseType: string;
-    if (strategy.isUserDefined) {
-      baseType = strategy.referencedClass.userDefined?.exportName || strategy.referencedClass.name;
-    } else if (strategy.shouldInline) {
-      const projection = selectionCatalogue.getFieldProjection(field, queryContext);
-      baseType = projection?.projectionTypeName ?? `Mock${field.type.name}Type`;
-    } else {
-      baseType = `Mock${strategy.referencedClass.name}Builder`;
+    switch (resolvedField.kind) {
+      case 'user-defined':
+        baseType =
+          resolvedField.referencedClass.userDefined.exportName ||
+          resolvedField.referencedClass.name;
+        break;
+      case 'inline':
+      case 'inline-input':
+        baseType = `Mock${field.type.name}Type`;
+        break;
+      case 'inline-pick':
+        baseType = resolvedField.pickTypeName;
+        break;
+      case 'builder':
+      case 'selection-builder':
+        baseType = `Mock${resolvedField.referencedClass.name}Builder`;
+        break;
+      case 'fragment-backed':
+        throw new Error(`Field "${field.name}" should have used fragment-backed type rendering`);
     }
 
     const nullableSuffix = field.type.nullable ? ' | null' : '';
@@ -97,20 +109,19 @@ export function renderDefaultValue(
   }
 
   if (field.type.kind === GQLKind.Object) {
-    const strategy = selectionCatalogue.getObjectFieldStrategy(field, queryContext);
-    if (!strategy) {
-      throw new Error(`Unable to resolve object field strategy for "${field.name}"`);
+    const resolvedField = selectionCatalogue.getResolvedObjectField(field, queryContext);
+    if (!resolvedField) {
+      throw new Error(`Unable to resolve object field for "${field.name}"`);
     }
 
     if (field.isList) {
       return '[]';
     }
 
-    if (strategy.isUserDefined || strategy.shouldInline) {
-      const fieldsToRender = strategy.isUserDefined
-        ? strategy.referencedClass.outputs
-        : strategy.projectedFields;
-      return `{
+    switch (resolvedField.kind) {
+      case 'user-defined': {
+        const fieldsToRender = resolvedField.referencedClass.outputs;
+        return `{
           ${fieldsToRender
             .map(
               (output) =>
@@ -123,9 +134,29 @@ export function renderDefaultValue(
             )
             .join(',\n          ')}
         }`;
+      }
+      case 'inline':
+      case 'inline-input':
+      case 'inline-pick':
+        return `{
+          ${resolvedField.projectedFields
+            .map(
+              (output) =>
+                `${output.name}: ${renderDefaultValue(
+                  output,
+                  parseResult,
+                  undefined,
+                  selectionCatalogue
+                )}`
+            )
+            .join(',\n          ')}
+        }`;
+      case 'builder':
+      case 'selection-builder':
+        return `new Mock${resolvedField.referencedClass.name}Builder()`;
+      case 'fragment-backed':
+        throw new Error(`Field "${field.name}" should have used fragment-backed default rendering`);
     }
-
-    return `new Mock${strategy.referencedClass.name}Builder()`;
   }
 
   // If this is an array, render it as an empty array
