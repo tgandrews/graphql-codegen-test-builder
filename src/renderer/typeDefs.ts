@@ -1,4 +1,5 @@
 import { FieldValue, GQLKind, GQLType, ParseResult } from '../parser';
+import { buildSelectionCatalogue } from '../selection';
 import { determineFieldsToRender } from './helpers';
 
 type TypeDefMap<T extends GQLKind = GQLKind> = {
@@ -76,7 +77,9 @@ export const TYPE_DEFS: TypeDefMap = {
         throw new Error(`Unable to find reference to "${referencedTypeId}" from "${field.name}"`);
       }
       if (klass.userDefined || klass.shouldInline) {
-        const fieldsToRender = klass.userDefined ? klass.outputs : determineFieldsToRender(klass);
+        const fieldsToRender = klass.userDefined
+          ? klass.outputs
+          : determineFieldsToRender(klass, buildSelectionCatalogue(parseResult));
         if (!renderDefaultValueFn) {
           throw new Error('renderDefaultValueFn is required for Object type');
         }

@@ -1,20 +1,22 @@
 import { FieldValue, FragmentObject, GQLKind, ParseResult } from '../parser';
+import { buildSelectionCatalogue, SelectionCatalogue } from '../selection';
 import { renderField, renderSetter } from './fieldRenderer';
 import { isFragmentBackedField } from './typeRenderer';
 
 function renderFragmentOutputField(
   field: FieldValue,
   parseResult: ParseResult,
-  parentPath: string[] = []
+  parentPath: string[] = [],
+  selectionCatalogue: SelectionCatalogue = buildSelectionCatalogue(parseResult)
 ): string {
   const fieldPath = [...parentPath, field.name].join('.');
   if (field.type.kind !== GQLKind.Object) {
     return `${field.name}: this.${fieldPath}`;
   }
 
-  const klass = parseResult.classes.get(field.type.id);
-  if (!klass) {
-    throw new Error(`Unable to find reference to "${field.type.id}" from "${field.name}"`);
+  const strategy = selectionCatalogue.getObjectFieldStrategy(field);
+  if (!strategy) {
+    throw new Error(`Unable to resolve object field strategy for "${field.name}"`);
   }
 
   if (isFragmentBackedField(field)) {
@@ -31,25 +33,33 @@ function renderFragmentOutputField(
   }
 
   if (field.isList) {
-    if (klass.shouldInline || klass.userDefined) {
+    if (strategy.shouldInline || strategy.isUserDefined) {
       return `${field.name}: this.${fieldPath}`;
     }
     return `${field.name}: this.${fieldPath}.map(item => item.build())`;
   }
 
-  if (klass.shouldInline || klass.userDefined) {
+  if (strategy.shouldInline || strategy.isUserDefined) {
     return `${field.name}: this.${fieldPath}`;
   }
 
   return `${field.name}: this.${fieldPath}.build()`;
 }
 
-export function renderFragment(fragment: FragmentObject, parseResult: ParseResult): string {
+export function renderFragment(
+  fragment: FragmentObject,
+  parseResult: ParseResult,
+  selectionCatalogue: SelectionCatalogue = buildSelectionCatalogue(parseResult)
+): string {
   const className = `Mock${fragment.name}FragmentBuilder`;
-  const fields = fragment.outputs.map((field) => renderField(field, parseResult));
-  const setters = fragment.outputs.map((field) => renderSetter(field, 'having', parseResult));
+  const fields = fragment.outputs.map((field) =>
+    renderField(field, parseResult, undefined, selectionCatalogue)
+  );
+  const setters = fragment.outputs.map((field) =>
+    renderSetter(field, 'having', parseResult, undefined, selectionCatalogue)
+  );
   const buildFields = fragment.outputs.map((field) =>
-    renderFragmentOutputField(field, parseResult)
+    renderFragmentOutputField(field, parseResult, [], selectionCatalogue)
   );
 
   return `class ${className} {

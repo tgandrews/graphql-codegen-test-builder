@@ -1,5 +1,5 @@
 import { ClassObject, FieldValue, GQLKind, ParseResult } from '../parser';
-import { isFragmentBackedField } from './typeRenderer';
+import { buildSelectionCatalogue, SelectionCatalogue } from '../selection';
 
 function renderBuildReturnType(klass: ClassObject): string {
   if (!klass.operation) {
@@ -13,7 +13,8 @@ function renderBuildReturnType(klass: ClassObject): string {
 function renderSelectionBuilderObject(
   klass: ClassObject,
   parseResult: ParseResult,
-  parentPath: string[]
+  parentPath: string[],
+  selectionCatalogue: SelectionCatalogue
 ): string {
   if (klass.outputs.length === 0) {
     throw new Error(`Class "${klass.name}" has no output fields to render`);
@@ -21,7 +22,9 @@ function renderSelectionBuilderObject(
 
   return `{
       ${klass.outputs
-        .map((field) => renderOutputField(field, parseResult, parentPath))
+        .map((field) =>
+          renderOutputField(field, parseResult, parentPath, undefined, selectionCatalogue)
+        )
         .join(',\n      ')}
     }`;
 }
@@ -30,24 +33,24 @@ function renderOutputField(
   field: FieldValue,
   parseResult: ParseResult,
   parentPath: string[] = [],
-  selectedFieldsFilter?: string[]
+  selectedFieldsFilter?: string[],
+  selectionCatalogue: SelectionCatalogue = buildSelectionCatalogue(parseResult)
 ): string {
   if (field.type.kind !== GQLKind.Object) {
     return `${field.name}: this.${[...parentPath, field.name].join('.')}`; // No need to call build() for non-object types
   }
 
-  const referencedTypeId = field.type.id;
-  const klass = parseResult.classes.get(referencedTypeId);
-  if (!klass) {
-    throw new Error(`Unable to find reference to "${referencedTypeId}" from "${field.name}"`);
+  const strategy = selectionCatalogue.getObjectFieldStrategy(field);
+  if (!strategy) {
+    throw new Error(`Unable to resolve object field strategy for "${field.name}"`);
   }
-  if (klass.shouldInline && klass.isInput) {
+  if (strategy.isInlineInput) {
     return `${field.name}: this.${[...parentPath, field.name].join('.')}`;
   }
 
   const itemPath = [...parentPath, field.name].join('.');
-  const schemaTypeName = field.schemaTypeName ?? klass.name;
-  if (klass.isSelectionBuilder) {
+  const schemaTypeName = strategy.schemaTypeName;
+  if (strategy.isSelectionBuilder) {
     if (field.isList) {
       if (field.type.nullable) {
         return `${field.name}: this.${itemPath}?.map(item => ({
@@ -74,7 +77,7 @@ function renderOutputField(
     }`;
   }
 
-  if (isFragmentBackedField(field)) {
+  if (strategy.isFragmentBacked) {
     if (field.isList) {
       if (field.type.nullable) {
         return `${field.name}: this.${itemPath}?.map(item => ({
@@ -104,45 +107,46 @@ function renderOutputField(
   // Handle arrays
   if (field.isList) {
     // For user-defined classes, map and extract fields
-    if (klass.userDefined) {
-      const fieldsToRender = selectedFieldsFilter
-        ? klass.outputs.filter((f) => selectedFieldsFilter.includes(f.name))
-        : klass.selectedOutputs ?? klass.outputs;
+    if (strategy.isUserDefined) {
+      const fieldsToRender = strategy.projectedFields;
       const itemName = 'item';
       return `${field.name}: this.${itemPath}.map(${itemName} => ({
-      __typename: '${klass.name}',
+      __typename: '${strategy.referencedClass.name}',
       ${fieldsToRender.map((f) => `${f.name}: ${itemName}.${f.name}`).join(',\n      ')}
     }))`;
     }
     // For builders, map and call build()
-    if (!klass.shouldInline) {
+    if (!strategy.shouldInline) {
       return `${field.name}: this.${itemPath}.map(item => item.build())`;
     }
     // For inlined types, map and render inline
     return `${field.name}: this.${itemPath}.map(item => ${renderBuildObject(
-      klass,
+      strategy.referencedClass,
       parseResult,
       ['item'],
-      selectedFieldsFilter
+      selectedFieldsFilter,
+      selectionCatalogue
     )})`;
   }
 
-  if (klass.userDefined) {
+  if (strategy.isUserDefined) {
     const baseObject = renderBuildObject(
-      klass,
+      strategy.referencedClass,
       parseResult,
       [...parentPath, field.name],
-      selectedFieldsFilter
+      selectedFieldsFilter,
+      selectionCatalogue
     );
     return `${field.name}: ${baseObject}`;
   }
 
-  if (klass.shouldInline) {
+  if (strategy.shouldInline) {
     const baseObject = renderBuildObject(
-      klass,
+      strategy.referencedClass,
       parseResult,
       [...parentPath, field.name],
-      selectedFieldsFilter
+      selectedFieldsFilter,
+      selectionCatalogue
     );
     return `${field.name}: ${baseObject}`;
   }
@@ -155,7 +159,8 @@ function renderBuildObject(
   klass: ClassObject,
   parseResult: ParseResult,
   parentPath: string[],
-  selectedFieldsFilter?: string[]
+  selectedFieldsFilter?: string[],
+  selectionCatalogue: SelectionCatalogue = buildSelectionCatalogue(parseResult)
 ): string {
   if (klass.isInput) {
     if (klass.inputs.length === 0) {
@@ -164,18 +169,14 @@ function renderBuildObject(
 
     return `{
       ${klass.inputs
-        .map((field) => renderOutputField(field, parseResult, parentPath))
+        .map((field) =>
+          renderOutputField(field, parseResult, parentPath, undefined, selectionCatalogue)
+        )
         .join(',\n      ')}
     }`;
   }
 
-  // Use selectedFieldsFilter if provided, otherwise use selectedOutputs or all outputs
-  let fieldsToRender = klass.outputs;
-  if (selectedFieldsFilter && selectedFieldsFilter.length > 0) {
-    fieldsToRender = klass.outputs.filter((f) => selectedFieldsFilter.includes(f.name));
-  } else if (klass.selectedOutputs) {
-    fieldsToRender = klass.selectedOutputs;
-  }
+  const fieldsToRender = selectionCatalogue.getFieldsToRender(klass, selectedFieldsFilter);
 
   if (fieldsToRender.length === 0) {
     throw new Error(`Class "${klass.name}" has no output fields to render`);
@@ -183,25 +184,37 @@ function renderBuildObject(
   return `{
       __typename: '${klass.name}',
       ${fieldsToRender
-        .map((field) => renderOutputField(field, parseResult, parentPath))
+        .map((field) =>
+          renderOutputField(field, parseResult, parentPath, undefined, selectionCatalogue)
+        )
         .join(',\n      ')}
     }`;
 }
 
-function renderBuildVariables(klass: ClassObject, parseResult: ParseResult): string {
+function renderBuildVariables(
+  klass: ClassObject,
+  parseResult: ParseResult,
+  selectionCatalogue: SelectionCatalogue
+): string {
   if (!klass.inputs.length) {
     return '';
   }
   return `variables: {
-    ${klass.inputs.map((field) => renderOutputField(field, parseResult)).join(',\n')}
+    ${klass.inputs
+      .map((field) => renderOutputField(field, parseResult, [], undefined, selectionCatalogue))
+      .join(',\n')}
   }`;
 }
 
-function renderOperationRequest(klass: ClassObject, parseResult: ParseResult): string {
+function renderOperationRequest(
+  klass: ClassObject,
+  parseResult: ParseResult,
+  selectionCatalogue: SelectionCatalogue
+): string {
   const baseName = `${klass.name}${klass.operation}`;
   const requestParts = [
     `query: ${baseName}Document,`,
-    renderBuildVariables(klass, parseResult),
+    renderBuildVariables(klass, parseResult, selectionCatalogue),
   ].filter(Boolean);
 
   return `{
@@ -209,29 +222,39 @@ function renderOperationRequest(klass: ClassObject, parseResult: ParseResult): s
     }`;
 }
 
-function renderOperationData(klass: ClassObject, parseResult: ParseResult): string {
+function renderOperationData(
+  klass: ClassObject,
+  parseResult: ParseResult,
+  selectionCatalogue: SelectionCatalogue
+): string {
   return `{
         __typename: '${klass.operation}',
         ${klass.outputs
-          .map((field) => renderOutputField(field, parseResult, [], field.selectedFields))
+          .map((field) =>
+            renderOutputField(field, parseResult, [], field.selectedFields, selectionCatalogue)
+          )
           .join(',\n        ')}
       }`;
 }
 
-function renderBuildResult(klass: ClassObject, parseResult: ParseResult): string {
+function renderBuildResult(
+  klass: ClassObject,
+  parseResult: ParseResult,
+  selectionCatalogue: SelectionCatalogue
+): string {
   if (!klass.operation) {
     if (klass.isSelectionBuilder) {
-      return renderSelectionBuilderObject(klass, parseResult, []);
+      return renderSelectionBuilderObject(klass, parseResult, [], selectionCatalogue);
     }
-    return renderBuildObject(klass, parseResult, []);
+    return renderBuildObject(klass, parseResult, [], undefined, selectionCatalogue);
   }
 
   if (klass.outputs.length === 0) {
     throw new Error(`Operation "${klass.name}" has no output fields to render`);
   }
 
-  const request = renderOperationRequest(klass, parseResult);
-  const data = renderOperationData(klass, parseResult);
+  const request = renderOperationRequest(klass, parseResult, selectionCatalogue);
+  const data = renderOperationData(klass, parseResult, selectionCatalogue);
 
   return `{
     request: ${request},
@@ -254,8 +277,12 @@ function renderBuildResult(klass: ClassObject, parseResult: ParseResult): string
   }`;
 }
 
-export function renderBuild(klass: ClassObject, parseResult: ParseResult): string {
+export function renderBuild(
+  klass: ClassObject,
+  parseResult: ParseResult,
+  selectionCatalogue: SelectionCatalogue = buildSelectionCatalogue(parseResult)
+): string {
   return `build()${renderBuildReturnType(klass)} {
-    return ${renderBuildResult(klass, parseResult)} as const
+    return ${renderBuildResult(klass, parseResult, selectionCatalogue)} as const
   }`;
 }

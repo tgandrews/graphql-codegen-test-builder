@@ -1,13 +1,6 @@
 import { ClassObject, FieldValue, GQLKind, ParseResult } from '../parser';
+import { buildSelectionCatalogue, SelectionCatalogue } from '../selection';
 import { TYPE_DEFS } from './typeDefs';
-
-export function getPickTypeName(
-  queryName: string,
-  fieldName: string,
-  fieldTypeName: string
-): string {
-  return `${queryName}${fieldTypeName}Type`;
-}
 
 export function isFragmentBackedField(field: FieldValue): boolean {
   return field.type.kind === GQLKind.Object && Boolean(field.fragmentSpreads?.length);
@@ -55,39 +48,38 @@ export function renderFragmentBackedFieldDefaultValue(field: FieldValue): string
 export function renderType(
   field: FieldValue,
   parseResult: ParseResult,
-  queryContext?: ClassObject
+  queryContext?: ClassObject,
+  selectionCatalogue: SelectionCatalogue = buildSelectionCatalogue(parseResult)
 ): string {
   if (isFragmentBackedField(field)) {
     return renderFragmentBackedFieldType(field);
   }
 
+  if (field.type.kind === GQLKind.Object) {
+    const strategy = selectionCatalogue.getObjectFieldStrategy(field, queryContext);
+    if (!strategy) {
+      throw new Error(`Unable to resolve object field strategy for "${field.name}"`);
+    }
+
+    let baseType: string;
+    if (strategy.isUserDefined) {
+      baseType = strategy.referencedClass.userDefined?.exportName || strategy.referencedClass.name;
+    } else if (strategy.shouldInline) {
+      const projection = selectionCatalogue.getFieldProjection(field, queryContext);
+      baseType = projection?.projectionTypeName ?? `Mock${field.type.name}Type`;
+    } else {
+      baseType = `Mock${strategy.referencedClass.name}Builder`;
+    }
+
+    const nullableSuffix = field.type.nullable ? ' | null' : '';
+    const arraySuffix = field.isList ? '[]' : '';
+    return `${baseType}${arraySuffix}${nullableSuffix}`;
+  }
+
   const typeDef = TYPE_DEFS[field.type.kind];
   // TODO: Fix this typing
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let baseType = typeDef.renderType(field as any, parseResult);
-
-  // If we're in a query context and this field has selectedFields, check if we need Pick type
-  if (
-    queryContext?.operation &&
-    field.type.kind === GQLKind.Object &&
-    field.selectedFields &&
-    field.selectedFields.length > 0
-  ) {
-    const referencedTypeId = field.type.id;
-    const referencedKlass = parseResult.classes.get(referencedTypeId);
-    if (referencedKlass && referencedKlass.shouldInline && referencedKlass.selectedOutputs) {
-      // Only use Pick type if selected fields differ from base type's fields
-      const baseTypeFields = referencedKlass.selectedOutputs.map((f) => f.name).sort();
-      const querySelectedFields = [...field.selectedFields].sort();
-      const needsPickType =
-        baseTypeFields.length !== querySelectedFields.length ||
-        !baseTypeFields.every((f, i) => f === querySelectedFields[i]);
-
-      if (needsPickType) {
-        baseType = getPickTypeName(queryContext.name, field.name, field.type.name);
-      }
-    }
-  }
+  const baseType = typeDef.renderType(field as any, parseResult);
 
   const nullableSuffix = field.type.nullable ? ' | null' : '';
   const arraySuffix = field.isList ? '[]' : '';
@@ -97,43 +89,48 @@ export function renderType(
 export function renderDefaultValue(
   field: FieldValue,
   parseResult: ParseResult,
-  queryContext?: ClassObject
+  queryContext?: ClassObject,
+  selectionCatalogue: SelectionCatalogue = buildSelectionCatalogue(parseResult)
 ): string {
   if (isFragmentBackedField(field)) {
     return renderFragmentBackedFieldDefaultValue(field);
   }
 
+  if (field.type.kind === GQLKind.Object) {
+    const strategy = selectionCatalogue.getObjectFieldStrategy(field, queryContext);
+    if (!strategy) {
+      throw new Error(`Unable to resolve object field strategy for "${field.name}"`);
+    }
+
+    if (field.isList) {
+      return '[]';
+    }
+
+    if (strategy.isUserDefined || strategy.shouldInline) {
+      const fieldsToRender = strategy.isUserDefined
+        ? strategy.referencedClass.outputs
+        : strategy.projectedFields;
+      return `{
+          ${fieldsToRender
+            .map(
+              (output) =>
+                `${output.name}: ${renderDefaultValue(
+                  output,
+                  parseResult,
+                  undefined,
+                  selectionCatalogue
+                )}`
+            )
+            .join(',\n          ')}
+        }`;
+    }
+
+    return `new Mock${strategy.referencedClass.name}Builder()`;
+  }
+
   // If this is an array, render it as an empty array
   if (field.isList) {
     return '[]';
-  }
-
-  // If this is an object with selected fields in a query context, check if we need custom rendering
-  if (
-    queryContext?.operation &&
-    field.type.kind === GQLKind.Object &&
-    field.selectedFields &&
-    field.selectedFields.length > 0
-  ) {
-    const referencedTypeId = field.type.id;
-    const klass = parseResult.classes.get(referencedTypeId);
-    if (klass && klass.shouldInline && klass.selectedOutputs) {
-      // Only render selected fields if they differ from base type's fields
-      const baseTypeFields = klass.selectedOutputs.map((f) => f.name).sort();
-      const querySelectedFields = [...field.selectedFields].sort();
-      const needsCustomRender =
-        baseTypeFields.length !== querySelectedFields.length ||
-        !baseTypeFields.every((f, i) => f === querySelectedFields[i]);
-
-      if (needsCustomRender) {
-        const fieldsToRender = klass.outputs.filter((f) => field.selectedFields?.includes(f.name));
-        return `{
-          ${fieldsToRender
-            .map((output) => `${output.name}: ${renderDefaultValue(output, parseResult)}`)
-            .join(',\n          ')}
-        }`;
-      }
-    }
   }
 
   const typeDef = TYPE_DEFS[field.type.kind];
