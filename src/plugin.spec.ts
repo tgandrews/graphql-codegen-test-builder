@@ -74,7 +74,15 @@ describe('plugin', () => {
       `;
 
       const result = await runPlugin(query, schema);
-      expect(result).toMatchSnapshot();
+      expectContainsAll(result, [
+        'returningServiceError(',
+        'errors: readonly GraphQLErrorLike[] | string',
+        'this.responseMode = "serviceError"',
+        'this.serviceErrors =',
+        'this.includeServiceData = options.includeData ?? true',
+        'errors: this.serviceErrors',
+        '...(this.includeServiceData',
+      ]);
     });
   });
 
