@@ -12,7 +12,7 @@ const graphqlCodegenBuilderPlugin: PluginFunction<Config, Types.ComplexPluginOut
 ) => {
   const parseResult = parse(schema, documents, config);
   log('parse result', parseResult);
-  const optimisedResult = optimiser(parseResult);
+  const optimisedResult = optimiser(parseResult, config);
   log('optimised result', optimisedResult);
   const renderedOutput = render(optimisedResult);
   return { content: renderedOutput };

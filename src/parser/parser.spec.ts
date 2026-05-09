@@ -37,14 +37,14 @@ describe('parser', () => {
       const result = parse(schema, documents);
 
       // Operations are stored with isInput: true, so they use :input suffix
-      const operation = result.classes.get('GetUser:input');
+      const operation = result.getClass('GetUser:input');
       expect(operation).toBeDefined();
       expect(operation?.operation).toBe('Query');
       expect(operation?.outputs).toHaveLength(1);
       expect(operation?.outputs[0].name).toBe('me');
 
       // Should have the User type
-      const userType = result.classes.get('User:output');
+      const userType = result.getClass('User:output');
       expect(userType).toBeDefined();
       expect(userType?.outputs).toHaveLength(2);
       expect(userType?.outputs.map((f) => f.name)).toEqual(['name', 'age']);
@@ -77,13 +77,13 @@ describe('parser', () => {
       const result = parse(schema, documents);
 
       // Should have User type
-      const userType = result.classes.get('User:output');
+      const userType = result.getClass('User:output');
       expect(userType?.outputs).toHaveLength(2);
       expect(userType?.outputs[0].name).toBe('name');
       expect(userType?.outputs[1].name).toBe('profile');
 
       // Should have Profile type
-      const profileType = result.classes.get('Profile:output');
+      const profileType = result.getClass('Profile:output');
       expect(profileType).toBeDefined();
       expect(profileType?.outputs).toHaveLength(1);
       expect(profileType?.outputs[0].name).toBe('bio');
@@ -117,7 +117,7 @@ describe('parser', () => {
       const result = parse(schema, documents);
 
       // Should have the mutation operation
-      const operation = result.classes.get('UpdateUser:input');
+      const operation = result.getClass('UpdateUser:input');
       expect(operation).toBeDefined();
       expect(operation?.operation).toBe('Mutation');
       expect(operation?.inputs).toHaveLength(1);
@@ -125,7 +125,7 @@ describe('parser', () => {
       expect(operation?.inputs[0].type.kind).toBe(GQLKind.Object);
 
       // Should have the input type
-      const inputType = result.classes.get('UpdateUserInput:input');
+      const inputType = result.getClass('UpdateUserInput:input');
       expect(inputType).toBeDefined();
       expect(inputType?.inputs).toHaveLength(2);
       expect(inputType?.inputs.map((f) => f.name)).toEqual(['name', 'age']);
@@ -160,11 +160,11 @@ describe('parser', () => {
       const result = parse(schema, documents);
 
       // Should have both operations
-      expect(result.classes.get('GetUserName:input')).toBeDefined();
-      expect(result.classes.get('GetUserEmail:input')).toBeDefined();
+      expect(result.getClass('GetUserName:input')).toBeDefined();
+      expect(result.getClass('GetUserEmail:input')).toBeDefined();
 
       // User type should have all fields in outputs (complete schema)
-      const userType = result.classes.get('User:output');
+      const userType = result.getClass('User:output');
       expect(userType?.outputs).toHaveLength(3);
       expect(userType?.outputs.map((f) => f.name)).toEqual(['name', 'email', 'age']);
 
@@ -195,7 +195,7 @@ describe('parser', () => {
 
       const result = parse(schema, documents);
 
-      const userType = result.classes.get('User:output');
+      const userType = result.getClass('User:output');
       expect(userType?.outputs).toHaveLength(2);
       // selectedOutputs is set to track which fields were selected
       expect(userType?.selectedOutputs).toHaveLength(1);
@@ -227,7 +227,7 @@ describe('parser', () => {
 
       const result = parse(schema, documents);
 
-      const userType = result.classes.get('User:output');
+      const userType = result.getClass('User:output');
       const requiredField = userType?.outputs.find((f) => f.name === 'requiredName');
       const optionalField = userType?.outputs.find((f) => f.name === 'optionalName');
 
@@ -256,7 +256,7 @@ describe('parser', () => {
 
       const result = parse(schema, documents);
 
-      const userType = result.classes.get('User:output');
+      const userType = result.getClass('User:output');
       const nameField = userType?.outputs.find((f) => f.name === 'name');
       const ageField = userType?.outputs.find((f) => f.name === 'age');
 
@@ -287,7 +287,7 @@ describe('parser', () => {
 
       const result = parse(schema, documents);
 
-      const userType = result.classes.get('User:output');
+      const userType = result.getClass('User:output');
       const isActive = userType?.outputs.find((f) => f.name === 'isActive');
       const isVerified = userType?.outputs.find((f) => f.name === 'isVerified');
 
@@ -316,7 +316,7 @@ describe('parser', () => {
 
       const result = parse(schema, documents);
 
-      const userType = result.classes.get('User:output');
+      const userType = result.getClass('User:output');
       const score = userType?.outputs.find((f) => f.name === 'score');
       const rating = userType?.outputs.find((f) => f.name === 'rating');
 
@@ -345,7 +345,7 @@ describe('parser', () => {
 
       const result = parse(schema, documents);
 
-      const userType = result.classes.get('User:output');
+      const userType = result.getClass('User:output');
       const id = userType?.outputs.find((f) => f.name === 'id');
       const parentId = userType?.outputs.find((f) => f.name === 'parentId');
 
@@ -376,7 +376,7 @@ describe('parser', () => {
 
       const result = parse(schema, documents);
 
-      const inputType = result.classes.get('DeleteUserInput:input');
+      const inputType = result.getClass('DeleteUserInput:input');
       const idField = inputType?.inputs.find((f) => f.name === 'id');
       const softDeleteField = inputType?.inputs.find((f) => f.name === 'softDelete');
 
@@ -415,7 +415,7 @@ describe('parser', () => {
 
       const result = parse(schema, documents);
 
-      const userType = result.classes.get('User:output');
+      const userType = result.getClass('User:output');
       const profileField = userType?.selectedOutputs?.find((f) => f.name === 'profile');
       expect(profileField?.selectedFields).toEqual(['bio', 'avatar']);
     });
@@ -456,16 +456,16 @@ describe('parser', () => {
 
       const result = parse(schema, documents);
 
-      expect(result.fragments.get('UserSummary')).toBeDefined();
-      expect(result.fragments.get('UserSummary')?.typeName).toBe('User');
-      expect(result.fragments.get('UserSummary')?.outputs.map((field) => field.name)).toEqual([
+      expect(result.getFragment('UserSummary')).toBeDefined();
+      expect(result.getFragment('UserSummary')?.typeName).toBe('User');
+      expect(result.getFragment('UserSummary')?.outputs.map((field) => field.name)).toEqual([
         'name',
         'email',
       ]);
 
-      const operation = result.classes.get('GetUser:input');
+      const operation = result.getClass('GetUser:input');
       const meField = operation?.outputs.find((field) => field.name === 'me');
-      const selectionBuilder = result.classes.get('GetUserMeSelection:output');
+      const selectionBuilder = result.getClass('GetUserMeSelection:output');
       expect(meField?.type.kind).toBe(GQLKind.Object);
       if (meField?.type.kind !== GQLKind.Object) {
         throw new Error('Expected me field to be an object');
@@ -505,12 +505,12 @@ describe('parser', () => {
 
       const result = parse(schema, documents);
 
-      const operation = result.classes.get('GetUser:input');
+      const operation = result.getClass('GetUser:input');
       const meField = operation?.outputs.find((field) => field.name === 'me');
       expect(operation?.outputs).toHaveLength(1);
       expect(meField?.selectedFields).toEqual(['name', 'email']);
 
-      const userType = result.classes.get('User:output');
+      const userType = result.getClass('User:output');
       expect(userType?.selectedOutputs?.map((field) => field.name)).toEqual(['name', 'email']);
     });
 
@@ -544,9 +544,9 @@ describe('parser', () => {
 
       const result = parse(schema, documents);
 
-      const operation = result.classes.get('GetUser:input');
+      const operation = result.getClass('GetUser:input');
       const meField = operation?.outputs.find((field) => field.name === 'me');
-      const selectionBuilder = result.classes.get('GetUserMeSelection:output');
+      const selectionBuilder = result.getClass('GetUserMeSelection:output');
       expect(operation?.outputs).toHaveLength(1);
       expect(meField?.type.kind).toBe(GQLKind.Object);
       if (meField?.type.kind !== GQLKind.Object) {
@@ -585,9 +585,9 @@ describe('parser', () => {
 
       const result = parse(schema, documents);
 
-      const operation = result.classes.get('GetUser:input');
+      const operation = result.getClass('GetUser:input');
       const meField = operation?.outputs.find((field) => field.name === 'me');
-      const selectionBuilder = result.classes.get('GetUserMeSelection:output');
+      const selectionBuilder = result.getClass('GetUserMeSelection:output');
       expect(operation?.outputs).toHaveLength(1);
       expect(meField?.type.kind).toBe(GQLKind.Object);
       if (meField?.type.kind !== GQLKind.Object) {
@@ -632,18 +632,18 @@ describe('parser', () => {
 
       const result = parse(schema, documents);
 
-      expect(result.fragments.get('UserCore')?.outputs.map((field) => field.name)).toEqual([
+      expect(result.getFragment('UserCore')?.outputs.map((field) => field.name)).toEqual([
         'id',
         'name',
       ]);
-      expect(result.fragments.get('UserDetails')?.outputs.map((field) => field.name)).toEqual([
+      expect(result.getFragment('UserDetails')?.outputs.map((field) => field.name)).toEqual([
         'id',
         'name',
         'email',
       ]);
 
-      const meField = result.classes
-        .get('GetUser:input')
+      const meField = result
+        .getClass('GetUser:input')
         ?.outputs.find((field) => field.name === 'me');
       expect(meField?.fragmentSpreads).toEqual(['UserDetails']);
       expect(meField?.selectedFields).toEqual(['id', 'name', 'email']);
@@ -756,7 +756,7 @@ describe('parser', () => {
       };
       const result = parse(schema, documents, config);
 
-      const userType = result.classes.get('User:output');
+      const userType = result.getClass('User:output');
       expect(userType).toBeDefined();
       expect(userType?.userDefined).toEqual({ path: './models', exportName: 'UserModel' });
     });
@@ -792,7 +792,7 @@ describe('parser', () => {
       };
       const result = parse(schema, documents, config);
 
-      const profileType = result.classes.get('Profile:output');
+      const profileType = result.getClass('Profile:output');
       expect(profileType).toBeDefined();
       expect(profileType?.userDefined).toEqual({ path: './models', exportName: 'ProfileModel' });
     });
@@ -821,7 +821,7 @@ describe('parser', () => {
       };
       const result = parse(schema, documents, config);
 
-      const userType = result.classes.get('User:output');
+      const userType = result.getClass('User:output');
       expect(userType).toBeDefined();
       expect(userType?.userDefined).toEqual({ path: './models', exportName: 'UserModel' });
     });

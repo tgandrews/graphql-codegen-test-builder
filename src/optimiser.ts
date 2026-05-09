@@ -1,6 +1,7 @@
 import { ClassObject, ParseResult } from './parser';
+import { Config } from './types';
 
-type OptimisingFn = (parseResult: ParseResult) => ParseResult;
+type OptimisingFn = (parseResult: ParseResult, config: Config) => ParseResult;
 
 const DEFAULT_INLINE_FIELD_COUNT_THRESHOLD = 3;
 
@@ -12,11 +13,10 @@ const shouldInlineClass = (klass: ClassObject, threshold: number): boolean => {
   return klass.inputs.length <= threshold;
 };
 
-const inlineSmallClasses: OptimisingFn = (parseResult) => {
-  const threshold =
-    parseResult.getConfig().inlineFieldCountThreshold ?? DEFAULT_INLINE_FIELD_COUNT_THRESHOLD;
+const inlineSmallClasses: OptimisingFn = (parseResult, config) => {
+  const threshold = config.inlineFieldCountThreshold ?? DEFAULT_INLINE_FIELD_COUNT_THRESHOLD;
 
-  parseResult.classes.forEach((klass) => {
+  parseResult.getClasses().forEach((klass) => {
     // If it's an operation don't touch it
     if (klass.operation) {
       return;
@@ -38,12 +38,12 @@ const inlineSmallClasses: OptimisingFn = (parseResult) => {
 
 const rules: Array<OptimisingFn> = [inlineSmallClasses];
 
-const optimiser = (parseResult: ParseResult): ParseResult => {
-  if (parseResult.getConfig().enableOptimiser === false) {
+const optimiser = (parseResult: ParseResult, config: Config = {}): ParseResult => {
+  if (config.enableOptimiser === false) {
     return parseResult;
   }
 
-  return rules.reduce((result, fn) => fn(result), parseResult);
+  return rules.reduce((result, fn) => fn(result, config), parseResult);
 };
 
 export default optimiser;

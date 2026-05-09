@@ -18,7 +18,7 @@ import {
   TypeNode,
   VariableDefinitionNode,
 } from 'graphql';
-import { GQLKind, GQLType, FieldValue, SimpleGQLType } from './types';
+import { ClassObject, GQLKind, GQLType, FieldValue, SimpleGQLType } from './types';
 import { ParseResult } from './ParseResult';
 import { mergeFieldValuesByName } from './merge';
 import { Config } from '../types';
@@ -31,6 +31,21 @@ type SelectionParseResult = {
   result: ParseResult;
   fragmentSpreads: string[];
 };
+
+function applyUserDefinedClassConfig(
+  klass: Omit<ClassObject, 'id'>,
+  config: Config
+): Omit<ClassObject, 'id'> {
+  const userDefined = config.userDefinedClasses?.[klass.name];
+  if (!userDefined) {
+    return klass;
+  }
+
+  return {
+    ...klass,
+    userDefined,
+  };
+}
 
 function parseScalarType(fieldType: GraphQLScalarType, nullable: boolean): SimpleGQLType {
   switch (fieldType.name) {
@@ -84,7 +99,7 @@ function parseInputType(fieldType: TypeNode, nullable: boolean): GQLType {
 
 function parseCompleteSchemaType(schemaType: GraphQLObjectType, config: Config): ParseResult {
   const fields = schemaType.getFields();
-  const result = new ParseResult(config);
+  const result = new ParseResult();
 
   const outputs: FieldValue[] = [];
 
@@ -116,13 +131,18 @@ function parseCompleteSchemaType(schemaType: GraphQLObjectType, config: Config):
     }
   }
 
-  result.addClass({
-    name: schemaType.name,
-    inputs: [],
-    outputs,
-    isInput: false,
-    isCompleteSchema: true,
-  });
+  result.addClass(
+    applyUserDefinedClassConfig(
+      {
+        name: schemaType.name,
+        inputs: [],
+        outputs,
+        isInput: false,
+        isCompleteSchema: true,
+      },
+      config
+    )
+  );
 
   return result;
 }
@@ -154,7 +174,7 @@ function parseSelectionSet(
     },
     {
       outputs: [],
-      result: new ParseResult(config),
+      result: new ParseResult(),
       fragmentSpreads: [],
     }
   );
@@ -163,12 +183,17 @@ function parseSelectionSet(
   const fragmentSpreads = Array.from(new Set(parsedSelections.fragmentSpreads));
 
   const completeTypeResult = parseCompleteSchemaType(schemaType, config);
-  parsedSelections.result.addClass({
-    name,
-    inputs: [],
-    outputs: mergedOutputs,
-    isInput: false,
-  });
+  parsedSelections.result.addClass(
+    applyUserDefinedClassConfig(
+      {
+        name,
+        inputs: [],
+        outputs: mergedOutputs,
+        isInput: false,
+      },
+      config
+    )
+  );
 
   return {
     ...parsedSelections,
@@ -235,15 +260,20 @@ function parseFieldSelection(
     const selectionClassName = shouldComposeFragments
       ? `${selectionOwnerName}${capitalise(fieldName)}Selection`
       : typeName;
-    const klass = result.result.classes.get(`${typeName}:output`);
+    const klass = result.result.getOutputClass(typeName);
     if (shouldComposeFragments) {
-      result.result.addClass({
-        name: selectionClassName,
-        inputs: [],
-        outputs: result.outputs,
-        isInput: false,
-        isSelectionBuilder: true,
-      });
+      result.result.addClass(
+        applyUserDefinedClassConfig(
+          {
+            name: selectionClassName,
+            inputs: [],
+            outputs: result.outputs,
+            isInput: false,
+            isSelectionBuilder: true,
+          },
+          config
+        )
+      );
     }
     const fieldValue: FieldValue = {
       name: fieldName,
@@ -275,7 +305,7 @@ function parseFieldSelection(
   };
   return {
     outputs: [value],
-    result: new ParseResult(config),
+    result: new ParseResult(),
     fragmentSpreads: [],
   };
 }
@@ -318,7 +348,7 @@ function parseFragmentSelection(
     fragmentDefinitions,
     activeFragmentPath
   );
-  const fragment = fragmentResult.fragments.get(node.name.value);
+  const fragment = fragmentResult.getFragment(node.name.value);
   if (!fragment) {
     throw new Error(`Unable to parse fragment definition for: ${node.name.value}`);
   }
@@ -364,10 +394,7 @@ function isNamedTypeNode(typeNode: NamedTypeNode | ListTypeNode): typeNode is Na
   return typeNode.kind === Kind.NAMED_TYPE;
 }
 
-function parseInputValueField(
-  field: InputValueDefinitionNode,
-  config: Config
-): {
+function parseInputValueField(field: InputValueDefinitionNode): {
   field: FieldValue;
   result: ParseResult;
 } {
@@ -383,7 +410,7 @@ function parseInputValueField(
       name: field.name.value,
       type: parseInputType(fieldType, nullable),
     },
-    result: new ParseResult(config),
+    result: new ParseResult(),
   };
 }
 
@@ -421,10 +448,10 @@ function parseVariableDefinition(
     throw new Error(`GraphQL type ${graphQLTypeName} is not an input object type`);
   }
 
-  const result = new ParseResult(config);
+  const result = new ParseResult();
   const { inputs, result: inputResult } = (astNode.fields ?? []).reduce(
     (result, inputField): { inputs: FieldValue[]; result: ParseResult } => {
-      const parsed = parseInputValueField(inputField, config);
+      const parsed = parseInputValueField(inputField);
       return {
         inputs: [...result.inputs, parsed.field],
         result: result.result.merge(parsed.result),
@@ -433,12 +460,17 @@ function parseVariableDefinition(
     { inputs: [] as FieldValue[], result }
   );
 
-  inputResult.addClass({
-    name: graphQLTypeName,
-    inputs,
-    outputs: [],
-    isInput: true,
-  });
+  inputResult.addClass(
+    applyUserDefinedClassConfig(
+      {
+        name: graphQLTypeName,
+        inputs,
+        outputs: [],
+        isInput: true,
+      },
+      config
+    )
+  );
 
   const input: FieldValue = {
     name,
@@ -485,7 +517,7 @@ export function parseOperation(
         result: result.merge(parsed.result),
       };
     },
-    { outputs: [], result: new ParseResult(config) }
+    { outputs: [], result: new ParseResult() }
   );
   const mergedOutputs = mergeFieldValuesByName(outputs);
 
@@ -513,13 +545,18 @@ export function parseOperation(
       throw new Error(`Unsupported operation type: "${operation.operation}"`);
   }
 
-  variableResult.addClass({
-    name,
-    inputs,
-    outputs: mergedOutputs,
-    isInput: true,
-    operation: operationType,
-  });
+  variableResult.addClass(
+    applyUserDefinedClassConfig(
+      {
+        name,
+        inputs,
+        outputs: mergedOutputs,
+        isInput: true,
+        operation: operationType,
+      },
+      config
+    )
+  );
 
   return variableResult;
 }
@@ -553,10 +590,7 @@ export function parseFragmentDefinition(
     currentFragmentPath,
     fragment.name.value
   );
-  const klass = selectionResult.result.classes.get(`${typeName}:output`);
-  if (!klass) {
-    throw new Error(`Unable to find parsed selection output for fragment: ${fragment.name.value}`);
-  }
+  const klass = selectionResult.result.requireOutputClass(typeName);
 
   selectionResult.result.addFragment({
     name: fragment.name.value,

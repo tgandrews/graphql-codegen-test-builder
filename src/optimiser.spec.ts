@@ -8,7 +8,7 @@ const createSimpleField = (name: string, kind: GQLKind, nullable = false) => ({
 
 describe('optimiser', () => {
   it('should inline generated output types by default', () => {
-    const parseResult = new ParseResult({});
+    const parseResult = new ParseResult();
     const klass: ClassObject = {
       id: 'User:output',
       name: 'User',
@@ -22,15 +22,15 @@ describe('optimiser', () => {
       isInput: false,
     };
 
-    parseResult.classes.set(klass.id, klass);
+    parseResult.addClass(klass);
 
     const result = optimiser(parseResult);
 
-    expect(result.classes.get('User:output')?.shouldInline).toBe(true);
+    expect(result.getClass('User:output')?.shouldInline).toBe(true);
   });
 
   it('should inline generated input types at or below the configured threshold', () => {
-    const parseResult = new ParseResult({ inlineFieldCountThreshold: 2 });
+    const parseResult = new ParseResult();
     const klass: ClassObject = {
       id: 'Filter:input',
       name: 'Filter',
@@ -42,15 +42,15 @@ describe('optimiser', () => {
       isInput: true,
     };
 
-    parseResult.classes.set(klass.id, klass);
+    parseResult.addClass(klass);
 
-    const result = optimiser(parseResult);
+    const result = optimiser(parseResult, { inlineFieldCountThreshold: 2 });
 
-    expect(result.classes.get('Filter:input')?.shouldInline).toBe(true);
+    expect(result.getClass('Filter:input')?.shouldInline).toBe(true);
   });
 
   it('should not inline generated input types above the configured threshold', () => {
-    const parseResult = new ParseResult({ inlineFieldCountThreshold: 2 });
+    const parseResult = new ParseResult();
     const klass: ClassObject = {
       id: 'CreateUserInput:input',
       name: 'CreateUserInput',
@@ -63,19 +63,15 @@ describe('optimiser', () => {
       isInput: true,
     };
 
-    parseResult.classes.set(klass.id, klass);
+    parseResult.addClass(klass);
 
-    const result = optimiser(parseResult);
+    const result = optimiser(parseResult, { inlineFieldCountThreshold: 2 });
 
-    expect(result.classes.get('CreateUserInput:input')?.shouldInline).toBeUndefined();
+    expect(result.getClass('CreateUserInput:input')?.shouldInline).toBeUndefined();
   });
 
   it('should not inline user-defined classes', () => {
-    const parseResult = new ParseResult({
-      userDefinedClasses: {
-        User: { path: './userModel', exportName: 'MockUserType' },
-      },
-    });
+    const parseResult = new ParseResult();
     const klass: ClassObject = {
       id: 'User:output',
       name: 'User',
@@ -85,15 +81,15 @@ describe('optimiser', () => {
       userDefined: { path: './userModel', exportName: 'MockUserType' },
     };
 
-    parseResult.classes.set(klass.id, klass);
+    parseResult.addClass(klass);
 
     const result = optimiser(parseResult);
 
-    expect(result.classes.get('User:output')?.shouldInline).toBeUndefined();
+    expect(result.getClass('User:output')?.shouldInline).toBeUndefined();
   });
 
   it('should not inline operation classes', () => {
-    const parseResult = new ParseResult({});
+    const parseResult = new ParseResult();
     const klass: ClassObject = {
       id: 'GetUser:input',
       name: 'GetUser',
@@ -103,15 +99,15 @@ describe('optimiser', () => {
       operation: 'Query',
     };
 
-    parseResult.classes.set(klass.id, klass);
+    parseResult.addClass(klass);
 
     const result = optimiser(parseResult);
 
-    expect(result.classes.get('GetUser:input')?.shouldInline).toBeUndefined();
+    expect(result.getClass('GetUser:input')?.shouldInline).toBeUndefined();
   });
 
   it('should skip all optimisation when disabled', () => {
-    const parseResult = new ParseResult({ enableOptimiser: false });
+    const parseResult = new ParseResult();
     const outputKlass: ClassObject = {
       id: 'User:output',
       name: 'User',
@@ -127,12 +123,12 @@ describe('optimiser', () => {
       isInput: true,
     };
 
-    parseResult.classes.set(outputKlass.id, outputKlass);
-    parseResult.classes.set(inputKlass.id, inputKlass);
+    parseResult.addClass(outputKlass);
+    parseResult.addClass(inputKlass);
 
-    const result = optimiser(parseResult);
+    const result = optimiser(parseResult, { enableOptimiser: false });
 
-    expect(result.classes.get('User:output')?.shouldInline).toBeUndefined();
-    expect(result.classes.get('CreateUserInput:input')?.shouldInline).toBeUndefined();
+    expect(result.getClass('User:output')?.shouldInline).toBeUndefined();
+    expect(result.getClass('CreateUserInput:input')?.shouldInline).toBeUndefined();
   });
 });

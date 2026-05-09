@@ -7,7 +7,7 @@ describe('classRenderer', () => {
   let parseResult: ParseResult;
 
   beforeEach(() => {
-    parseResult = new ParseResult({});
+    parseResult = new ParseResult();
   });
 
   const createSimpleField = (name: string, kind: GQLKind, nullable = false): FieldValue => ({
@@ -175,7 +175,7 @@ describe('classRenderer', () => {
           isInput: false,
         };
 
-        parseResult.classes.set('User:output', userClass);
+        parseResult.addClass(userClass);
 
         const result = prettify(renderClass(klass, parseResult));
 
@@ -201,8 +201,7 @@ describe('classRenderer', () => {
           isInput: false,
           operation: 'Query',
         };
-        parseResult.classes.set('User:output', {
-          id: 'User:output',
+        parseResult.addClass({
           name: 'User',
           inputs: [],
           outputs: [createSimpleField('name', GQLKind.String)],
@@ -246,8 +245,7 @@ describe('classRenderer', () => {
           operation: 'Query',
         };
 
-        parseResult.classes.set('User:output', {
-          id: 'User:output',
+        parseResult.addClass({
           name: 'User',
           inputs: [],
           outputs: [
@@ -261,8 +259,7 @@ describe('classRenderer', () => {
             createSimpleField('email', GQLKind.String),
           ],
         });
-        parseResult.fragments.set('UserSummary', {
-          id: 'UserSummary',
+        parseResult.addFragment({
           name: 'UserSummary',
           typeName: 'User',
           outputs: [
@@ -299,8 +296,7 @@ describe('classRenderer', () => {
           operation: 'Query',
         };
 
-        parseResult.classes.set('User:output', {
-          id: 'User:output',
+        parseResult.addClass({
           name: 'User',
           inputs: [],
           outputs: [createSimpleField('name', GQLKind.String)],
@@ -308,8 +304,7 @@ describe('classRenderer', () => {
           shouldInline: true,
           selectedOutputs: [createSimpleField('name', GQLKind.String)],
         });
-        parseResult.fragments.set('UserSummary', {
-          id: 'UserSummary',
+        parseResult.addFragment({
           name: 'UserSummary',
           typeName: 'User',
           outputs: [createSimpleField('name', GQLKind.String)],
@@ -339,8 +334,7 @@ describe('classRenderer', () => {
           operation: 'Query',
         };
 
-        parseResult.classes.set('User:output', {
-          id: 'User:output',
+        parseResult.addClass({
           name: 'User',
           inputs: [],
           outputs: [createSimpleField('name', GQLKind.String)],
@@ -348,8 +342,7 @@ describe('classRenderer', () => {
           shouldInline: true,
           selectedOutputs: [createSimpleField('name', GQLKind.String)],
         });
-        parseResult.fragments.set('UserSummary', {
-          id: 'UserSummary',
+        parseResult.addFragment({
           name: 'UserSummary',
           typeName: 'User',
           outputs: [createSimpleField('name', GQLKind.String)],
@@ -386,8 +379,7 @@ describe('classRenderer', () => {
           operation: 'Query',
         };
 
-        parseResult.classes.set('GetUsersUsersSelection:output', {
-          id: 'GetUsersUsersSelection:output',
+        parseResult.addClass({
           name: 'GetUsersUsersSelection',
           inputs: [],
           outputs: [
@@ -425,7 +417,7 @@ describe('classRenderer', () => {
           isInput: false,
         };
 
-        parseResult.classes.set('User:output', userClass);
+        parseResult.addClass(userClass);
 
         const result = prettify(renderClass(klass, parseResult));
 
@@ -475,7 +467,7 @@ describe('classRenderer', () => {
           shouldInline: true,
         };
 
-        parseResult.classes.set('User:output', userClass);
+        parseResult.addClass(userClass);
 
         const result = prettify(renderClass(klass, parseResult));
 
@@ -518,7 +510,7 @@ describe('classRenderer', () => {
           shouldInline: true,
         };
 
-        parseResult.classes.set('User:output', userClass);
+        parseResult.addClass(userClass);
 
         const result = prettify(renderClass(klass, parseResult));
 
@@ -559,7 +551,7 @@ describe('classRenderer', () => {
           shouldInline: true,
         };
 
-        parseResult.classes.set('User:output', userClass);
+        parseResult.addClass(userClass);
 
         const result = prettify(renderClass(klass, parseResult));
 
@@ -595,7 +587,7 @@ describe('classRenderer', () => {
           isInput: false,
         };
 
-        parseResult.classes.set('Profile:output', profileClass);
+        parseResult.addClass(profileClass);
 
         const result = prettify(renderClass(klass, parseResult));
 
@@ -627,7 +619,7 @@ describe('classRenderer', () => {
           isInput: false,
         };
 
-        parseResult.classes.set('Profile:output', profileClass);
+        parseResult.addClass(profileClass);
 
         const result = prettify(renderClass(klass, parseResult));
 

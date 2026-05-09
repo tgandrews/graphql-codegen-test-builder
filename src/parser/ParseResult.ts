@@ -1,6 +1,5 @@
 import { ClassObject, FragmentObject, UnionObject } from './types';
 import { mergeClasses, mergeFieldValuesByName } from './merge';
-import { Config } from '../types';
 
 function normalizeStringArray(values?: string[]): string[] | undefined {
   if (!values?.length) {
@@ -25,25 +24,81 @@ function normalizeFragmentOutputs(fragment: FragmentObject): string {
 }
 
 export class ParseResult {
-  classes: Map<string, ClassObject> = new Map();
-  fragments: Map<string, FragmentObject> = new Map();
-  unions: Map<string, UnionObject> = new Map();
+  private classes: Map<string, ClassObject> = new Map();
+  private fragments: Map<string, FragmentObject> = new Map();
+  private unions: Map<string, UnionObject> = new Map();
 
-  constructor(private readonly config: Config) {}
+  getClass(id: string): ClassObject | undefined {
+    return this.classes.get(id);
+  }
 
-  getConfig(): Config {
-    return this.config;
+  getFragment(name: string): FragmentObject | undefined {
+    return this.fragments.get(name);
+  }
+
+  getUnion(name: string): UnionObject | undefined {
+    return this.unions.get(name);
+  }
+
+  getClasses(): ClassObject[] {
+    return Array.from(this.classes.values());
+  }
+
+  getFragments(): FragmentObject[] {
+    return Array.from(this.fragments.values());
+  }
+
+  getUnions(): UnionObject[] {
+    return Array.from(this.unions.values());
+  }
+
+  hasClass(id: string): boolean {
+    return this.classes.has(id);
+  }
+
+  hasFragment(name: string): boolean {
+    return this.fragments.has(name);
+  }
+
+  hasUnion(name: string): boolean {
+    return this.unions.has(name);
+  }
+
+  getOutputClass(name: string): ClassObject | undefined {
+    return this.getClass(`${name}:output`);
+  }
+
+  getInputClass(name: string): ClassObject | undefined {
+    return this.getClass(`${name}:input`);
+  }
+
+  requireClass(id: string): ClassObject {
+    const klass = this.getClass(id);
+    if (!klass) {
+      throw new Error(`Unable to find class: ${id}`);
+    }
+    return klass;
+  }
+
+  requireOutputClass(name: string): ClassObject {
+    const klass = this.getOutputClass(name);
+    if (!klass) {
+      throw new Error(`Unable to find output class: ${name}`);
+    }
+    return klass;
+  }
+
+  requireInputClass(name: string): ClassObject {
+    const klass = this.getInputClass(name);
+    if (!klass) {
+      throw new Error(`Unable to find input class: ${name}`);
+    }
+    return klass;
   }
 
   addClass(klass: Omit<ClassObject, 'id'>): this {
-    // Apply user-defined class configuration
-    const userDefinedClassConfig = this.config.userDefinedClasses?.[klass.name];
-    if (userDefinedClassConfig) {
-      klass.userDefined = userDefinedClassConfig;
-    }
-
     const klassId = `${klass.name}:${klass.isInput ? 'input' : 'output'}`;
-    const existingKlass = this.classes.get(klassId);
+    const existingKlass = this.getClass(klassId);
 
     if (!existingKlass) {
       this.classes.set(klassId, { ...klass, id: klassId });
@@ -61,7 +116,7 @@ export class ParseResult {
   }
 
   addUnion(union: UnionObject): this {
-    if (this.unions.has(union.name)) {
+    if (this.hasUnion(union.name)) {
       throw new Error(`Duplicate unions with the same name (${union.name})`);
     }
     this.unions.set(union.name, union);
@@ -69,7 +124,7 @@ export class ParseResult {
   }
 
   addFragment(fragment: Omit<FragmentObject, 'id'>): this {
-    const existingFragment = this.fragments.get(fragment.name);
+    const existingFragment = this.getFragment(fragment.name);
     if (!existingFragment) {
       this.fragments.set(fragment.name, { ...fragment, id: fragment.name });
       return this;
@@ -88,13 +143,13 @@ export class ParseResult {
   }
 
   merge(otherParseResult: ParseResult): this {
-    for (const klass of otherParseResult.classes.values()) {
+    for (const klass of otherParseResult.getClasses()) {
       this.addClass(klass);
     }
-    for (const fragment of otherParseResult.fragments.values()) {
+    for (const fragment of otherParseResult.getFragments()) {
       this.addFragment(fragment);
     }
-    for (const union of otherParseResult.unions.values()) {
+    for (const union of otherParseResult.getUnions()) {
       this.addUnion(union);
     }
     return this;

@@ -44,7 +44,7 @@ const parse = (
     return operations.reduce<ParseResult>((acc, operation) => {
       return acc.merge(parseOperation(operation, schema, config, fragmentDefinitions));
     }, withFragments);
-  }, new ParseResult(config));
+  }, new ParseResult());
   return result;
 };
 
