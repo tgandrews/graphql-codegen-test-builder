@@ -1,10 +1,10 @@
-import { FieldValue, FragmentObject, GQLKind, ParseResult } from '../parser';
-import { buildSelectionCatalogue, SelectionCatalogue } from '../selection';
+import { FieldValue, FragmentObject, GQLKind, TransformResult } from '../transformer';
+import { buildSelectionCatalogue, SelectionCatalogue } from '../transformer';
 import { renderField, renderSetter } from './fieldRenderer';
 
 function renderFragmentOutputField(
   field: FieldValue,
-  parseResult: ParseResult,
+  parseResult: TransformResult,
   parentPath: string[] = [],
   selectionCatalogue: SelectionCatalogue = buildSelectionCatalogue(parseResult)
 ): string {
@@ -69,7 +69,7 @@ function renderFragmentOutputField(
 
 export function renderFragment(
   fragment: FragmentObject,
-  parseResult: ParseResult,
+  parseResult: TransformResult,
   selectionCatalogue: SelectionCatalogue = buildSelectionCatalogue(parseResult)
 ): string {
   const className = `Mock${fragment.name}FragmentBuilder`;

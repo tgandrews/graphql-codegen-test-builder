@@ -1,5 +1,5 @@
-import { ClassObject, FieldValue, GQLKind, ParseResult } from '../parser';
-import { buildSelectionCatalogue, SelectionCatalogue } from '../selection';
+import { ClassObject, FieldValue, GQLKind, TransformResult } from '../transformer';
+import { buildSelectionCatalogue, SelectionCatalogue } from '../transformer';
 
 function renderBuildReturnType(klass: ClassObject): string {
   if (!klass.operation) {
@@ -12,7 +12,7 @@ function renderBuildReturnType(klass: ClassObject): string {
 
 function renderSelectionBuilderObject(
   klass: ClassObject,
-  parseResult: ParseResult,
+  parseResult: TransformResult,
   parentPath: string[],
   selectionCatalogue: SelectionCatalogue
 ): string {
@@ -31,7 +31,7 @@ function renderSelectionBuilderObject(
 
 function renderOutputField(
   field: FieldValue,
-  parseResult: ParseResult,
+  parseResult: TransformResult,
   parentPath: string[] = [],
   selectedFieldsFilter?: string[],
   selectionCatalogue: SelectionCatalogue = buildSelectionCatalogue(parseResult)
@@ -184,7 +184,7 @@ function renderOutputField(
 
 function renderBuildObject(
   klass: ClassObject,
-  parseResult: ParseResult,
+  parseResult: TransformResult,
   parentPath: string[],
   selectedFieldsFilter?: string[],
   selectionCatalogue: SelectionCatalogue = buildSelectionCatalogue(parseResult)
@@ -220,7 +220,7 @@ function renderBuildObject(
 
 function renderBuildVariables(
   klass: ClassObject,
-  parseResult: ParseResult,
+  parseResult: TransformResult,
   selectionCatalogue: SelectionCatalogue
 ): string {
   if (!klass.inputs.length) {
@@ -235,7 +235,7 @@ function renderBuildVariables(
 
 function renderOperationRequest(
   klass: ClassObject,
-  parseResult: ParseResult,
+  parseResult: TransformResult,
   selectionCatalogue: SelectionCatalogue
 ): string {
   const baseName = `${klass.name}${klass.operation}`;
@@ -251,7 +251,7 @@ function renderOperationRequest(
 
 function renderOperationData(
   klass: ClassObject,
-  parseResult: ParseResult,
+  parseResult: TransformResult,
   selectionCatalogue: SelectionCatalogue
 ): string {
   return `{
@@ -266,7 +266,7 @@ function renderOperationData(
 
 function renderBuildResult(
   klass: ClassObject,
-  parseResult: ParseResult,
+  parseResult: TransformResult,
   selectionCatalogue: SelectionCatalogue
 ): string {
   if (!klass.operation) {
@@ -306,7 +306,7 @@ function renderBuildResult(
 
 export function renderBuild(
   klass: ClassObject,
-  parseResult: ParseResult,
+  parseResult: TransformResult,
   selectionCatalogue: SelectionCatalogue = buildSelectionCatalogue(parseResult)
 ): string {
   return `build()${renderBuildReturnType(klass)} {

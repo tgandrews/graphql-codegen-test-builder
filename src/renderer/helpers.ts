@@ -1,5 +1,5 @@
-import { ClassObject, FieldValue } from '../parser';
-import { SelectionCatalogue } from '../selection';
+import { ClassObject, FieldValue } from '../transformer';
+import { SelectionCatalogue } from '../transformer';
 
 export const determineFieldsToRender = (
   klass: ClassObject,

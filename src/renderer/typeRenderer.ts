@@ -1,5 +1,5 @@
-import { ClassObject, FieldValue, GQLKind, ParseResult } from '../parser';
-import { buildSelectionCatalogue, SelectionCatalogue } from '../selection';
+import { ClassObject, FieldValue, GQLKind, TransformResult } from '../transformer';
+import { buildSelectionCatalogue, SelectionCatalogue } from '../transformer';
 import { TYPE_DEFS } from './typeDefs';
 
 export function isFragmentBackedField(field: FieldValue): boolean {
@@ -47,7 +47,7 @@ export function renderFragmentBackedFieldDefaultValue(field: FieldValue): string
 
 export function renderType(
   field: FieldValue,
-  parseResult: ParseResult,
+  parseResult: TransformResult,
   queryContext?: ClassObject,
   selectionCatalogue: SelectionCatalogue = buildSelectionCatalogue(parseResult)
 ): string {
@@ -100,7 +100,7 @@ export function renderType(
 
 export function renderDefaultValue(
   field: FieldValue,
-  parseResult: ParseResult,
+  parseResult: TransformResult,
   queryContext?: ClassObject,
   selectionCatalogue: SelectionCatalogue = buildSelectionCatalogue(parseResult)
 ): string {

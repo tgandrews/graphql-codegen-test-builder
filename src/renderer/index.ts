@@ -1,19 +1,18 @@
-import { ParseResult } from '../parser';
-import { buildSelectionCatalogue } from '../selection';
+import { buildSelectionCatalogue, TransformResult } from '../transformer';
 import { renderClass } from './classRenderer';
 import { renderFragment } from './fragmentRenderer';
 
-const render = (parseResult: ParseResult): string => {
-  const selectionCatalogue = buildSelectionCatalogue(parseResult);
+const render = (transformResult: TransformResult): string => {
+  const selectionCatalogue = buildSelectionCatalogue(transformResult);
   const importStatements = new Set<string>();
   const fragments: string[] = [];
   const classes: string[] = [];
 
-  parseResult.getFragments().forEach((fragment) => {
-    fragments.push(renderFragment(fragment, parseResult, selectionCatalogue));
+  transformResult.fragments.forEach((fragment) => {
+    fragments.push(renderFragment(fragment, transformResult, selectionCatalogue));
   });
 
-  parseResult.getClasses().forEach((klass) => {
+  transformResult.classes.forEach((klass) => {
     // Generate import statements for user-defined classes
     if (klass.userDefined) {
       const exportName = klass.userDefined.exportName;
@@ -26,7 +25,7 @@ const render = (parseResult: ParseResult): string => {
       return;
     }
 
-    classes.push(renderClass(klass, parseResult, selectionCatalogue));
+    classes.push(renderClass(klass, transformResult, selectionCatalogue));
   });
 
   const imports = Array.from(importStatements);

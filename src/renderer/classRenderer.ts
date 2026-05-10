@@ -1,5 +1,5 @@
-import { ClassObject, GQLKind, ParseResult } from '../parser';
-import { buildSelectionCatalogue, SelectionCatalogue } from '../selection';
+import { ClassObject, GQLKind, TransformResult } from '../transformer';
+import { buildSelectionCatalogue, SelectionCatalogue } from '../transformer';
 import { renderType } from './typeRenderer';
 import { renderField, renderSetter } from './fieldRenderer';
 import { renderBuild } from './buildRenderer';
@@ -7,7 +7,7 @@ import { determineFieldsToRender } from './helpers';
 
 function renderClassAsType(
   klass: ClassObject,
-  parseResult: ParseResult,
+  parseResult: TransformResult,
   selectionCatalogue: SelectionCatalogue
 ): string {
   const name = `Mock${klass.name}Type`;
@@ -24,7 +24,7 @@ function renderClassAsType(
 
 function renderPickTypes(
   klass: ClassObject,
-  parseResult: ParseResult,
+  parseResult: TransformResult,
   selectionCatalogue: SelectionCatalogue
 ): string[] {
   if (!klass.operation) return [];
@@ -35,10 +35,14 @@ function renderPickTypes(
       continue;
     }
 
+    const fieldTypeId = field.type.id;
     const resolvedField = selectionCatalogue.getResolvedObjectField(field, klass);
     if (resolvedField?.kind === 'inline-pick') {
       const pickTypeName = resolvedField.pickTypeName;
-      const referencedKlass = parseResult.requireClass(field.type.id);
+      const referencedKlass = parseResult.classes.find((klass) => klass.id === fieldTypeId);
+      if (!referencedKlass) {
+        throw new Error(`Unable to find reference to "${fieldTypeId}" from "${field.name}"`);
+      }
       const baseTypeName = `Mock${referencedKlass.name}Type`;
       const selectedFieldsStr = resolvedField.selectedFieldNames
         .map((selectedField) => `"${selectedField}"`)
@@ -81,7 +85,7 @@ function renderOperationResponseModeSetters(klass: ClassObject): string[] {
 
 export function renderClass(
   klass: ClassObject,
-  parseResult: ParseResult,
+  parseResult: TransformResult,
   selectionCatalogue: SelectionCatalogue = buildSelectionCatalogue(parseResult)
 ): string {
   if (klass.shouldInline) {

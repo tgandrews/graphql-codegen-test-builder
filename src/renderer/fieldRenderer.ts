@@ -1,5 +1,5 @@
-import { ClassObject, FieldValue, ParseResult } from '../parser';
-import { buildSelectionCatalogue, SelectionCatalogue } from '../selection';
+import { ClassObject, FieldValue, TransformResult } from '../transformer';
+import { buildSelectionCatalogue, SelectionCatalogue } from '../transformer';
 import { capitalise } from '../utils';
 import { renderType, renderDefaultValue } from './typeRenderer';
 
@@ -9,7 +9,7 @@ function renderFunctionName(prefix: string, name: string): string {
 
 export function renderField(
   field: FieldValue,
-  parseResult: ParseResult,
+  parseResult: TransformResult,
   queryContext?: ClassObject,
   selectionCatalogue: SelectionCatalogue = buildSelectionCatalogue(parseResult)
 ): string {
@@ -21,7 +21,7 @@ export function renderField(
 export function renderSetter(
   field: FieldValue,
   prefix: string,
-  parseResult: ParseResult,
+  parseResult: TransformResult,
   queryContext?: ClassObject,
   selectionCatalogue: SelectionCatalogue = buildSelectionCatalogue(parseResult)
 ): string {
