@@ -36,12 +36,6 @@ export class ParseResult {
   }
 
   addClass(klass: Omit<ClassObject, 'id'>): this {
-    // Apply user-defined class configuration
-    const userDefinedClassConfig = this.config.userDefinedClasses?.[klass.name];
-    if (userDefinedClassConfig) {
-      klass.userDefined = userDefinedClassConfig;
-    }
-
     const klassId = `${klass.name}:${klass.isInput ? 'input' : 'output'}`;
     const existingKlass = this.classes.get(klassId);
 

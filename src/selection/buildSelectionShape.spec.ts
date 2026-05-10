@@ -76,7 +76,6 @@ describe('buildSelectionCatalogue', () => {
         createSimpleField('name', GQLKind.String),
       ],
       isInput: false,
-      shouldInline: true,
       hasMultipleQueries: true,
     });
 
@@ -169,7 +168,6 @@ describe('buildSelectionCatalogue', () => {
         createSimpleField('name', GQLKind.String),
       ],
       isInput: false,
-      shouldInline: true,
     });
 
     const operationClass: ClassObject = {
@@ -198,7 +196,6 @@ describe('buildSelectionCatalogue', () => {
       outputs: [createSimpleField('bio', GQLKind.String)],
       selectedOutputs: [createSimpleField('bio', GQLKind.String)],
       isInput: false,
-      shouldInline: true,
     });
 
     const field = createObjectField(
@@ -219,6 +216,11 @@ describe('buildSelectionCatalogue', () => {
   });
 
   it('does not generate pick projections for user-defined classes', () => {
+    parseResult = new ParseResult({
+      userDefinedClasses: {
+        User: { path: '@/builders/UserBuilder', exportName: 'UserBuilder' },
+      },
+    });
     parseResult.classes.set('User:output', {
       id: 'User:output',
       name: 'User',
@@ -233,8 +235,6 @@ describe('buildSelectionCatalogue', () => {
         createSimpleField('name', GQLKind.String),
       ],
       isInput: false,
-      shouldInline: true,
-      userDefined: { path: '@/builders/UserBuilder', exportName: 'UserBuilder' },
     });
 
     const operationClass: ClassObject = {
@@ -280,7 +280,6 @@ describe('buildSelectionCatalogue', () => {
       inputs: [createSimpleField('name', GQLKind.String)],
       outputs: [],
       isInput: true,
-      shouldInline: true,
     });
 
     const catalogue = buildSelectionCatalogue(parseResult);
@@ -292,6 +291,7 @@ describe('buildSelectionCatalogue', () => {
   });
 
   it('resolves builder fields', () => {
+    parseResult = new ParseResult({ enableOptimiser: false });
     parseResult.classes.set('User:output', {
       id: 'User:output',
       name: 'User',
@@ -320,7 +320,6 @@ describe('buildSelectionCatalogue', () => {
       ],
       selectedOutputs: [createSimpleField('id', GQLKind.String)],
       isInput: false,
-      shouldInline: true,
       hasMultipleQueries: true,
     });
 

@@ -1,6 +1,8 @@
 import { renderClass } from './classRenderer';
 import { ParseResult } from '../parser/ParseResult';
 import { ClassObject, FieldValue, GQLKind, GQLType } from '../parser/types';
+import { RenderPlan } from '../renderPlan';
+import { buildSelectionCatalogue } from '../selection';
 import { prettify } from '../test/helpers';
 
 describe('classRenderer', () => {
@@ -32,8 +34,8 @@ describe('classRenderer', () => {
           ],
           outputs: [],
           isInput: true,
-          shouldInline: true,
         };
+        parseResult.classes.set(klass.id, klass);
 
         const result = prettify(renderClass(klass, parseResult));
 
@@ -54,8 +56,8 @@ describe('classRenderer', () => {
             createSimpleField('email', GQLKind.String),
           ],
           isInput: false,
-          shouldInline: true,
         };
+        parseResult.classes.set(klass.id, klass);
 
         const result = prettify(renderClass(klass, parseResult));
 
@@ -81,9 +83,9 @@ describe('classRenderer', () => {
             createSimpleField('name', GQLKind.String),
           ],
           isInput: false,
-          shouldInline: true,
           hasMultipleQueries: true,
         };
+        parseResult.classes.set(klass.id, klass);
 
         const result = prettify(renderClass(klass, parseResult));
 
@@ -101,11 +103,15 @@ describe('classRenderer', () => {
           inputs: [],
           outputs: [createSimpleField('name', GQLKind.String)],
           isInput: false,
-          shouldInline: true,
           operation: 'Query',
         };
+        const inlineOperationPlan: RenderPlan = {
+          getClassPlan: () => ({ shouldInline: true }),
+          shouldInline: () => true,
+          getUserDefinedClass: () => undefined,
+        };
 
-        expect(() => renderClass(klass, parseResult)).toThrow(
+        expect(() => renderClass(klass, parseResult, undefined, inlineOperationPlan)).toThrow(
           'Attempting to inline operation: GetUser'
         );
       });
@@ -255,7 +261,6 @@ describe('classRenderer', () => {
             createSimpleField('email', GQLKind.String),
           ],
           isInput: false,
-          shouldInline: true,
           selectedOutputs: [
             createSimpleField('name', GQLKind.String),
             createSimpleField('email', GQLKind.String),
@@ -305,7 +310,6 @@ describe('classRenderer', () => {
           inputs: [],
           outputs: [createSimpleField('name', GQLKind.String)],
           isInput: false,
-          shouldInline: true,
           selectedOutputs: [createSimpleField('name', GQLKind.String)],
         });
         parseResult.fragments.set('UserSummary', {
@@ -345,7 +349,6 @@ describe('classRenderer', () => {
           inputs: [],
           outputs: [createSimpleField('name', GQLKind.String)],
           isInput: false,
-          shouldInline: true,
           selectedOutputs: [createSimpleField('name', GQLKind.String)],
         });
         parseResult.fragments.set('UserSummary', {
@@ -472,7 +475,6 @@ describe('classRenderer', () => {
             createSimpleField('age', GQLKind.Int),
           ],
           isInput: false,
-          shouldInline: true,
         };
 
         parseResult.classes.set('User:output', userClass);
@@ -515,7 +517,6 @@ describe('classRenderer', () => {
           ],
           selectedOutputs: [createSimpleField('id', GQLKind.String)],
           isInput: false,
-          shouldInline: true,
         };
 
         parseResult.classes.set('User:output', userClass);
@@ -556,7 +557,6 @@ describe('classRenderer', () => {
             createSimpleField('name', GQLKind.String),
           ],
           isInput: false,
-          shouldInline: true,
         };
 
         parseResult.classes.set('User:output', userClass);
@@ -597,7 +597,13 @@ describe('classRenderer', () => {
 
         parseResult.classes.set('Profile:output', profileClass);
 
-        const result = prettify(renderClass(klass, parseResult));
+        const renderPlan: RenderPlan = {
+          getClassPlan: () => ({ shouldInline: false }),
+          shouldInline: () => false,
+          getUserDefinedClass: () => undefined,
+        };
+        const selectionCatalogue = buildSelectionCatalogue(parseResult, renderPlan);
+        const result = prettify(renderClass(klass, parseResult, selectionCatalogue, renderPlan));
 
         expect(result).not.toContain('type UserUserType = Pick');
         expect(result).toContain('class MockUserBuilder {');
@@ -629,7 +635,13 @@ describe('classRenderer', () => {
 
         parseResult.classes.set('Profile:output', profileClass);
 
-        const result = prettify(renderClass(klass, parseResult));
+        const renderPlan: RenderPlan = {
+          getClassPlan: () => ({ shouldInline: false }),
+          shouldInline: () => false,
+          getUserDefinedClass: () => undefined,
+        };
+        const selectionCatalogue = buildSelectionCatalogue(parseResult, renderPlan);
+        const result = prettify(renderClass(klass, parseResult, selectionCatalogue, renderPlan));
 
         expect(result).toBe(`class MockUserBuilder {
   private filter: string = "";

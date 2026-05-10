@@ -1,5 +1,6 @@
 import { ClassObject, GQLKind, ParseResult } from '../parser';
 import { buildSelectionCatalogue, SelectionCatalogue } from '../selection';
+import { buildRenderPlan, RenderPlan } from '../renderPlan';
 import { renderType } from './typeRenderer';
 import { renderField, renderSetter } from './fieldRenderer';
 import { renderBuild } from './buildRenderer';
@@ -85,9 +86,10 @@ function renderOperationResponseModeSetters(klass: ClassObject): string[] {
 export function renderClass(
   klass: ClassObject,
   parseResult: ParseResult,
-  selectionCatalogue: SelectionCatalogue = buildSelectionCatalogue(parseResult)
+  selectionCatalogue: SelectionCatalogue = buildSelectionCatalogue(parseResult),
+  renderPlan: RenderPlan = buildRenderPlan(parseResult)
 ): string {
-  if (klass.shouldInline) {
+  if (renderPlan.shouldInline(klass)) {
     if (klass.operation) {
       throw new Error(`Attempting to inline operation: ${klass.name}`);
     }

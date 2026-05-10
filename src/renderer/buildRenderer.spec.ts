@@ -1,6 +1,8 @@
 import { renderBuild } from './buildRenderer';
 import { ParseResult } from '../parser/ParseResult';
 import { ClassObject, FieldValue, GQLKind, GQLType } from '../parser/types';
+import { RenderPlan } from '../renderPlan';
+import { buildSelectionCatalogue } from '../selection';
 
 describe('buildRenderer', () => {
   let parseResult: ParseResult;
@@ -47,6 +49,7 @@ describe('buildRenderer', () => {
       });
 
       it('should render build method for nested object fields with build() calls', () => {
+        parseResult = new ParseResult({ enableOptimiser: false });
         const userClass: ClassObject = {
           id: 'User:output',
           name: 'User',
@@ -97,7 +100,6 @@ describe('buildRenderer', () => {
           inputs: [],
           outputs: [createSimpleField('bio', GQLKind.String)],
           isInput: false,
-          shouldInline: true,
         };
 
         parseResult.classes.set('Profile:output', profileClass);
@@ -134,7 +136,6 @@ describe('buildRenderer', () => {
           inputs: [],
           outputs: [createSimpleField('theme', GQLKind.String)],
           isInput: true,
-          shouldInline: true,
         };
 
         parseResult.classes.set('Settings:output', settingsClass);
@@ -181,6 +182,7 @@ describe('buildRenderer', () => {
 
     describe('operation classes (queries/mutations)', () => {
       it('should build nullable non-fragment builder singular object fields safely', () => {
+        parseResult = new ParseResult({ enableOptimiser: false });
         const klass: ClassObject = {
           id: 'GetUser:output',
           name: 'GetUser',
@@ -206,6 +208,7 @@ describe('buildRenderer', () => {
       });
 
       it('should build nullable non-fragment builder list object fields safely', () => {
+        parseResult = new ParseResult({ enableOptimiser: false });
         const klass: ClassObject = {
           id: 'GetUser:output',
           name: 'GetUser',
@@ -231,6 +234,7 @@ describe('buildRenderer', () => {
       });
 
       it('should render build method for query operation with no variables', () => {
+        parseResult = new ParseResult({ enableOptimiser: false });
         const klass: ClassObject = {
           id: 'GetUser:output',
           name: 'GetUser',
@@ -331,6 +335,7 @@ describe('buildRenderer', () => {
       });
 
       it('should handle selectedFields in operation outputs', () => {
+        parseResult = new ParseResult({ enableOptimiser: false });
         const klass: ClassObject = {
           id: 'GetUser:output',
           name: 'GetUser',
@@ -396,7 +401,6 @@ describe('buildRenderer', () => {
             createSimpleField('email', GQLKind.String),
           ],
           isInput: false,
-          shouldInline: true,
           selectedOutputs: [
             createSimpleField('name', GQLKind.String),
             createSimpleField('email', GQLKind.String),
@@ -445,7 +449,6 @@ describe('buildRenderer', () => {
           inputs: [],
           outputs: [createSimpleField('name', GQLKind.String)],
           isInput: false,
-          shouldInline: true,
           selectedOutputs: [createSimpleField('name', GQLKind.String)],
         });
         parseResult.fragments.set('UserSummary', {
@@ -526,7 +529,6 @@ describe('buildRenderer', () => {
           inputs: [],
           outputs: [createSimpleField('name', GQLKind.String)],
           isInput: false,
-          shouldInline: true,
           selectedOutputs: [createSimpleField('name', GQLKind.String)],
         });
         parseResult.fragments.set('UserSummary', {
@@ -567,7 +569,6 @@ describe('buildRenderer', () => {
           inputs: [],
           outputs: [createSimpleField('name', GQLKind.String)],
           isInput: false,
-          shouldInline: true,
           selectedOutputs: [createSimpleField('name', GQLKind.String)],
         });
         parseResult.fragments.set('UserSummary', {
@@ -624,7 +625,6 @@ describe('buildRenderer', () => {
             createObjectField('avatar', 'Avatar:output'),
           ],
           isInput: false,
-          shouldInline: true,
         };
 
         const avatarClass: ClassObject = {
@@ -650,7 +650,13 @@ describe('buildRenderer', () => {
         parseResult.classes.set('Avatar:output', avatarClass);
         parseResult.classes.set('Address:output', addressClass);
 
-        const result = renderBuild(userClass, parseResult);
+        const renderPlan: RenderPlan = {
+          getClassPlan: (klass) => ({ shouldInline: klass.id === 'Profile:output' }),
+          shouldInline: (klass) => klass.id === 'Profile:output',
+          getUserDefinedClass: () => undefined,
+        };
+        const selectionCatalogue = buildSelectionCatalogue(parseResult, renderPlan);
+        const result = renderBuild(userClass, parseResult, selectionCatalogue);
 
         expect(result).toBe(`build() {
     return {

@@ -2,6 +2,7 @@ import { buildSchema, parse as parseGraphQL } from 'graphql';
 import { Types } from '@graphql-codegen/plugin-helpers';
 import parse, { GQLKind } from './index';
 import { Config } from '../types';
+import { buildRenderPlan } from '../renderPlan';
 
 const buildDocuments = (query: string): Types.DocumentFile[] => {
   const ast = parseGraphQL(query);
@@ -732,7 +733,7 @@ describe('parser', () => {
   });
 
   describe('user defined classes', () => {
-    it('should mark classes as user-defined based on config', () => {
+    it('should keep user-defined class config in the render plan', () => {
       const schema = buildSchema(`
         type Query {
           me: User!
@@ -758,10 +759,15 @@ describe('parser', () => {
 
       const userType = result.classes.get('User:output');
       expect(userType).toBeDefined();
-      expect(userType?.userDefined).toEqual({ path: './models', exportName: 'UserModel' });
+      if (userType) {
+        expect(buildRenderPlan(result).getUserDefinedClass(userType)).toEqual({
+          path: './models',
+          exportName: 'UserModel',
+        });
+      }
     });
 
-    it('should mark nested user-defined classes', () => {
+    it('should keep nested user-defined class config in the render plan', () => {
       const schema = buildSchema(`
         type Query {
           me: User!
@@ -794,10 +800,15 @@ describe('parser', () => {
 
       const profileType = result.classes.get('Profile:output');
       expect(profileType).toBeDefined();
-      expect(profileType?.userDefined).toEqual({ path: './models', exportName: 'ProfileModel' });
+      if (profileType) {
+        expect(buildRenderPlan(result).getUserDefinedClass(profileType)).toEqual({
+          path: './models',
+          exportName: 'ProfileModel',
+        });
+      }
     });
 
-    it('should handle arrays of user-defined classes', () => {
+    it('should handle arrays of user-defined classes in the render plan', () => {
       const schema = buildSchema(`
         type Query {
           users: [User!]!
@@ -823,7 +834,12 @@ describe('parser', () => {
 
       const userType = result.classes.get('User:output');
       expect(userType).toBeDefined();
-      expect(userType?.userDefined).toEqual({ path: './models', exportName: 'UserModel' });
+      if (userType) {
+        expect(buildRenderPlan(result).getUserDefinedClass(userType)).toEqual({
+          path: './models',
+          exportName: 'UserModel',
+        });
+      }
     });
   });
 });

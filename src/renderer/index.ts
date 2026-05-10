@@ -1,10 +1,14 @@
 import { ParseResult } from '../parser';
+import { buildRenderPlan, RenderPlan } from '../renderPlan';
 import { buildSelectionCatalogue } from '../selection';
 import { renderClass } from './classRenderer';
 import { renderFragment } from './fragmentRenderer';
 
-const render = (parseResult: ParseResult): string => {
-  const selectionCatalogue = buildSelectionCatalogue(parseResult);
+const render = (
+  parseResult: ParseResult,
+  renderPlan: RenderPlan = buildRenderPlan(parseResult)
+): string => {
+  const selectionCatalogue = buildSelectionCatalogue(parseResult, renderPlan);
   const importStatements = new Set<string>();
   const fragments: string[] = [];
   const classes: string[] = [];
@@ -14,19 +18,20 @@ const render = (parseResult: ParseResult): string => {
   });
 
   parseResult.classes.forEach((klass) => {
+    const userDefinedClass = renderPlan.getUserDefinedClass(klass);
     // Generate import statements for user-defined classes
-    if (klass.userDefined) {
-      const exportName = klass.userDefined.exportName;
+    if (userDefinedClass) {
+      const exportName = userDefinedClass.exportName;
       if (exportName) {
-        importStatements.add(`import { ${exportName} } from '${klass.userDefined.path}';`);
+        importStatements.add(`import { ${exportName} } from '${userDefinedClass.path}';`);
       } else {
-        importStatements.add(`import ${klass.name} from '${klass.userDefined.path}';`);
+        importStatements.add(`import ${klass.name} from '${userDefinedClass.path}';`);
       }
       // Don't render the class itself - we're importing it
       return;
     }
 
-    classes.push(renderClass(klass, parseResult, selectionCatalogue));
+    classes.push(renderClass(klass, parseResult, selectionCatalogue, renderPlan));
   });
 
   const imports = Array.from(importStatements);

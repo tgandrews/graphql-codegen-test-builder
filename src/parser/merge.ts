@@ -131,7 +131,6 @@ export function mergeClasses(
       ...existing,
       inputs: mergedInputs,
       outputs: mergedOutputs,
-      userDefined: incoming.userDefined ?? existing.userDefined,
     };
   }
 
@@ -145,6 +144,5 @@ export function mergeClasses(
     selectedOutputs: mergeResult.selectedOutputs,
     isCompleteSchema: mergeResult.isCompleteSchema,
     hasMultipleQueries: mergeResult.hasMultipleQueries,
-    userDefined: incoming.userDefined ?? existing.userDefined,
   };
 }

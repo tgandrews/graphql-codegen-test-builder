@@ -54,11 +54,8 @@ export type ClassObject = {
   isInput: boolean;
   operation?: 'Query' | 'Mutation';
   isSelectionBuilder?: boolean; // Synthetic builder for a concrete field selection
-  // TODO: This is a rendering property so shouldn't really live here
-  shouldInline?: boolean;
   isCompleteSchema?: boolean; // True if this represents all fields from the schema
   hasMultipleQueries?: boolean; // True if multiple queries selected different fields
-  userDefined?: { path: string; exportName?: string }; // User-provided type import info
 };
 
 export type UnionObject = {

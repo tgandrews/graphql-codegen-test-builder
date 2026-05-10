@@ -64,9 +64,7 @@ export function renderType(
     let baseType: string;
     switch (resolvedField.kind) {
       case 'user-defined':
-        baseType =
-          resolvedField.referencedClass.userDefined.exportName ||
-          resolvedField.referencedClass.name;
+        baseType = resolvedField.userDefined.exportName || resolvedField.referencedClass.name;
         break;
       case 'inline':
       case 'inline-input':

@@ -1,4 +1,5 @@
 import { ClassObject, FieldValue, GQLKind, ParseResult } from '../parser';
+import { buildRenderPlan, RenderPlan } from '../renderPlan';
 import { ResolvedObjectField, SelectionCatalogue, SelectionShape } from './types';
 
 function areSameFieldNames(left: string[], right: string[]): boolean {
@@ -58,7 +59,10 @@ export function getPickTypeName(
   return `${queryName}${fieldTypeName}${disambiguatedFieldName}Type`;
 }
 
-export function buildSelectionCatalogue(parseResult: ParseResult): SelectionCatalogue {
+export function buildSelectionCatalogue(
+  parseResult: ParseResult,
+  renderPlan: RenderPlan = buildRenderPlan(parseResult)
+): SelectionCatalogue {
   const shapes = new Map<string, SelectionShape>();
 
   for (const klass of parseResult.classes.values()) {
@@ -116,10 +120,12 @@ export function buildSelectionCatalogue(parseResult: ParseResult): SelectionCata
           outputField.selectedFields?.length
       ).length > 1
     );
+    const userDefinedClass = renderPlan.getUserDefinedClass(referencedClass);
+    const shouldInline = renderPlan.shouldInline(referencedClass);
     const needsPickType = Boolean(
       queryContext?.operation &&
-        referencedClass.shouldInline &&
-        !referencedClass.userDefined &&
+        shouldInline &&
+        !userDefinedClass &&
         !field.fragmentSpreads?.length &&
         sortedSelectedFieldNames.length > 0 &&
         !areSameFieldNames(baseSelectedFieldNames, sortedSelectedFieldNames)
@@ -148,20 +154,19 @@ export function buildSelectionCatalogue(parseResult: ParseResult): SelectionCata
       };
     }
 
-    if (referencedClass.userDefined) {
+    if (userDefinedClass) {
       return {
         kind: 'user-defined',
         fieldName: field.name,
         fieldTypeId: field.type.id,
         schemaTypeName,
-        referencedClass: referencedClass as ClassObject & {
-          userDefined: NonNullable<ClassObject['userDefined']>;
-        },
+        referencedClass,
+        userDefined: userDefinedClass,
         projectedFields: resolvedProjectedFields,
       };
     }
 
-    if (referencedClass.shouldInline && referencedClass.isInput) {
+    if (shouldInline && referencedClass.isInput) {
       return {
         kind: 'inline-input',
         fieldName: field.name,
@@ -172,7 +177,7 @@ export function buildSelectionCatalogue(parseResult: ParseResult): SelectionCata
       };
     }
 
-    if (referencedClass.shouldInline && queryContext && needsPickType) {
+    if (shouldInline && queryContext && needsPickType) {
       return {
         kind: 'inline-pick',
         fieldName: field.name,
@@ -190,7 +195,7 @@ export function buildSelectionCatalogue(parseResult: ParseResult): SelectionCata
       };
     }
 
-    if (referencedClass.shouldInline) {
+    if (shouldInline) {
       return {
         kind: 'inline',
         fieldName: field.name,

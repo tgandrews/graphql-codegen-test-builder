@@ -1,4 +1,5 @@
 import { ClassObject, FieldValue } from '../parser';
+import { ClassRenderPlan } from '../renderPlan';
 
 export type SelectionShape = {
   typeId: string;
@@ -27,9 +28,7 @@ export type ResolvedObjectField =
     })
   | (ResolvedObjectFieldBase & {
       kind: 'user-defined';
-      referencedClass: ClassObject & {
-        userDefined: NonNullable<ClassObject['userDefined']>;
-      };
+      userDefined: NonNullable<ClassRenderPlan['userDefined']>;
     })
   | (ResolvedObjectFieldBase & {
       kind: 'inline-input';
