@@ -1,5 +1,7 @@
-import { ClassObject, FragmentObject, UnionObject } from './types';
+import { Config } from '../types';
+import { ClassObject, FragmentObject, TransformResult, UnionObject } from './types';
 import { mergeClasses, mergeFieldValuesByName } from './merge';
+import { ParsedDocument } from '../parser';
 
 function normalizeStringArray(values?: string[]): string[] | undefined {
   if (!values?.length) {
@@ -23,21 +25,15 @@ function normalizeFragmentOutputs(fragment: FragmentObject): string {
   return JSON.stringify(normalizedOutputs);
 }
 
-export class ParseResult {
+export class TransformAccumulator {
   private classes: Map<string, ClassObject> = new Map();
   private fragments: Map<string, FragmentObject> = new Map();
   private unions: Map<string, UnionObject> = new Map();
 
+  constructor(private readonly config: Config) {}
+
   getClass(id: string): ClassObject | undefined {
     return this.classes.get(id);
-  }
-
-  getFragment(name: string): FragmentObject | undefined {
-    return this.fragments.get(name);
-  }
-
-  getUnion(name: string): UnionObject | undefined {
-    return this.unions.get(name);
   }
 
   getClasses(): ClassObject[] {
@@ -52,71 +48,32 @@ export class ParseResult {
     return Array.from(this.unions.values());
   }
 
-  hasClass(id: string): boolean {
-    return this.classes.has(id);
-  }
-
-  hasFragment(name: string): boolean {
-    return this.fragments.has(name);
-  }
-
-  hasUnion(name: string): boolean {
-    return this.unions.has(name);
-  }
-
-  getOutputClass(name: string): ClassObject | undefined {
-    return this.getClass(`${name}:output`);
-  }
-
-  getInputClass(name: string): ClassObject | undefined {
-    return this.getClass(`${name}:input`);
-  }
-
-  requireClass(id: string): ClassObject {
-    const klass = this.getClass(id);
-    if (!klass) {
-      throw new Error(`Unable to find class: ${id}`);
-    }
-    return klass;
-  }
-
-  requireOutputClass(name: string): ClassObject {
-    const klass = this.getOutputClass(name);
-    if (!klass) {
-      throw new Error(`Unable to find output class: ${name}`);
-    }
-    return klass;
-  }
-
-  requireInputClass(name: string): ClassObject {
-    const klass = this.getInputClass(name);
-    if (!klass) {
-      throw new Error(`Unable to find input class: ${name}`);
-    }
-    return klass;
-  }
-
   addClass(klass: Omit<ClassObject, 'id'>): this {
-    const klassId = `${klass.name}:${klass.isInput ? 'input' : 'output'}`;
-    const existingKlass = this.getClass(klassId);
+    const userDefined = this.config.userDefinedClasses?.[klass.name];
+    const incoming = userDefined ? { ...klass, userDefined } : klass;
+    const klassId = `${incoming.name}:${incoming.isInput ? 'input' : 'output'}`;
+    const existingKlass = this.classes.get(klassId);
 
     if (!existingKlass) {
-      this.classes.set(klassId, { ...klass, id: klassId });
+      this.classes.set(klassId, { ...incoming, id: klassId });
       return this;
     }
 
-    if (existingKlass.isInput !== klass.isInput || existingKlass.operation !== klass.operation) {
-      throw new Error(`Conflicting classes with the same name (${klass.name}) but different types`);
+    if (
+      existingKlass.isInput !== incoming.isInput ||
+      existingKlass.operation !== incoming.operation
+    ) {
+      throw new Error(
+        `Conflicting classes with the same name (${incoming.name}) but different types`
+      );
     }
 
-    // Merge the classes
-    const mergedKlass = mergeClasses(existingKlass, klass);
-    this.classes.set(klassId, mergedKlass);
+    this.classes.set(klassId, mergeClasses(existingKlass, incoming));
     return this;
   }
 
   addUnion(union: UnionObject): this {
-    if (this.hasUnion(union.name)) {
+    if (this.unions.has(union.name)) {
       throw new Error(`Duplicate unions with the same name (${union.name})`);
     }
     this.unions.set(union.name, union);
@@ -124,7 +81,7 @@ export class ParseResult {
   }
 
   addFragment(fragment: Omit<FragmentObject, 'id'>): this {
-    const existingFragment = this.getFragment(fragment.name);
+    const existingFragment = this.fragments.get(fragment.name);
     if (!existingFragment) {
       this.fragments.set(fragment.name, { ...fragment, id: fragment.name });
       return this;
@@ -142,16 +99,28 @@ export class ParseResult {
     return this;
   }
 
-  merge(otherParseResult: ParseResult): this {
-    for (const klass of otherParseResult.getClasses()) {
+  merge(other: TransformAccumulator): this {
+    for (const klass of other.getClasses()) {
       this.addClass(klass);
     }
-    for (const fragment of otherParseResult.getFragments()) {
+    for (const fragment of other.getFragments()) {
       this.addFragment(fragment);
     }
-    for (const union of otherParseResult.getUnions()) {
+    for (const union of other.getUnions()) {
       this.addUnion(union);
     }
     return this;
+  }
+
+  toTransformResult(parsed: ParsedDocument): TransformResult {
+    return {
+      parsed,
+      imports: [],
+      declarations: [],
+      classes: this.getClasses(),
+      fragments: this.getFragments(),
+      unions: this.getUnions(),
+      userDefinedClasses: this.config.userDefinedClasses,
+    };
   }
 }

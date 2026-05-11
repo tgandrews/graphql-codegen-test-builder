@@ -1,4 +1,4 @@
-import { FieldValue, GQLKind, GQLType, ParseResult } from '../parser';
+import { FieldValue, GQLKind, GQLType, TransformResult } from '../transformer';
 
 type RenderableKind = Exclude<GQLKind, GQLKind.Object>;
 
@@ -6,12 +6,12 @@ type TypeDefMap<T extends GQLKind = RenderableKind> = {
   [K in T]: {
     renderDefaultValue(
       field: FieldValue & { type: Extract<GQLType, { kind: K }> },
-      parseResult: ParseResult,
-      renderDefaultValueFn?: (field: FieldValue, parseResult: ParseResult) => string
+      parseResult: TransformResult,
+      renderDefaultValueFn?: (field: FieldValue, parseResult: TransformResult) => string
     ): string;
     renderType(
       field: FieldValue & { type: Extract<GQLType, { kind: K }> },
-      parseResult: ParseResult
+      parseResult: TransformResult
     ): string;
   };
 };

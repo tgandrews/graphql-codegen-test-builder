@@ -1,5 +1,59 @@
-import { ClassObject, FieldValue, GQLKind, ParseResult } from '../parser';
-import { ResolvedObjectField, SelectionCatalogue, SelectionShape } from './types';
+import { ClassObject, FieldValue, GQLKind, TransformResult } from './types';
+
+export type SelectionShape = {
+  typeId: string;
+  typeName: string;
+  baseFields: FieldValue[];
+  selectedFields: FieldValue[];
+  hasMultipleOperations: boolean;
+  isCompleteSchema: boolean;
+};
+
+type ResolvedObjectFieldBase = {
+  fieldName: string;
+  fieldTypeId: string;
+  schemaTypeName: string;
+  referencedClass: ClassObject;
+  projectedFields: FieldValue[];
+};
+
+export type ResolvedObjectField =
+  | (ResolvedObjectFieldBase & {
+      kind: 'fragment-backed';
+      fragmentSpreads: string[];
+    })
+  | (ResolvedObjectFieldBase & {
+      kind: 'selection-builder';
+    })
+  | (ResolvedObjectFieldBase & {
+      kind: 'user-defined';
+      referencedClass: ClassObject & {
+        userDefined: NonNullable<ClassObject['userDefined']>;
+      };
+    })
+  | (ResolvedObjectFieldBase & {
+      kind: 'inline-input';
+    })
+  | (ResolvedObjectFieldBase & {
+      kind: 'inline';
+    })
+  | (ResolvedObjectFieldBase & {
+      kind: 'inline-pick';
+      selectedFieldNames: string[];
+      pickTypeName: string;
+    })
+  | (ResolvedObjectFieldBase & {
+      kind: 'builder';
+    });
+
+export type SelectionCatalogue = {
+  getSelectionShape(typeId: string): SelectionShape | undefined;
+  getFieldsToRender(klass: ClassObject, selectedFieldNames?: string[]): FieldValue[];
+  getResolvedObjectField(
+    field: FieldValue,
+    queryContext?: ClassObject
+  ): ResolvedObjectField | undefined;
+};
 
 function areSameFieldNames(left: string[], right: string[]): boolean {
   if (left.length !== right.length) {
@@ -58,11 +112,13 @@ export function getPickTypeName(
   return `${queryName}${fieldTypeName}${disambiguatedFieldName}Type`;
 }
 
-export function buildSelectionCatalogue(parseResult: ParseResult): SelectionCatalogue {
+export function buildSelectionCatalogue(transformResult: TransformResult): SelectionCatalogue {
   const shapes = new Map<string, SelectionShape>();
+  const classes = new Map<string, ClassObject>();
 
-  for (const klass of parseResult.getClasses()) {
+  for (const klass of transformResult.classes) {
     shapes.set(klass.id, buildShape(klass));
+    classes.set(klass.id, klass);
   }
 
   const getSelectionShape = (typeId: string): SelectionShape | undefined => {
@@ -87,7 +143,10 @@ export function buildSelectionCatalogue(parseResult: ParseResult): SelectionCata
       return undefined;
     }
 
-    const referencedClass = parseResult.requireClass(field.type.id);
+    const referencedClass = classes.get(field.type.id);
+    if (!referencedClass) {
+      throw new Error(`Unable to find reference to "${field.type.id}" from "${field.name}"`);
+    }
     const fieldTypeId = field.type.id;
 
     const shape = getSelectionShape(field.type.id);

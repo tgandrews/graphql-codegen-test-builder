@@ -1,51 +1,80 @@
 import { Types } from '@graphql-codegen/plugin-helpers';
-import { FragmentDefinitionNode, GraphQLSchema, Kind, OperationDefinitionNode } from 'graphql';
-import { ParseResult } from './ParseResult';
-import { parseFragmentDefinition, parseOperation } from './parseOperation';
-import { Config } from '../types';
+import {
+  FragmentDefinitionNode,
+  GraphQLSchema,
+  Kind,
+  OperationDefinitionNode,
+  print,
+} from 'graphql';
+import {
+  createParseContext,
+  FragmentDefinitionMap,
+  parseFragmentDefinition,
+  parseOperation,
+} from './parseOperation';
+import { ParsedDocument, ParsedOperation } from './types';
 
-// Re-export types and classes
 export * from './types';
-export { ParseResult } from './ParseResult';
 
-// Main parse function
-const parse = (
-  schema: GraphQLSchema,
-  documents: Types.DocumentFile[],
-  config: Config = {}
-): ParseResult => {
-  const fragmentDefinitions = new Map<string, FragmentDefinitionNode>();
+function addFragmentDefinition(
+  fragments: FragmentDefinitionMap,
+  fragment: FragmentDefinitionNode
+): void {
+  const existing = fragments.get(fragment.name.value);
+  if (!existing) {
+    fragments.set(fragment.name.value, fragment);
+    return;
+  }
+
+  if (print(existing) !== print(fragment)) {
+    throw new Error(`Conflicting fragments with the same name (${fragment.name.value})`);
+  }
+}
+
+const parse = (schema: GraphQLSchema, documents: Types.DocumentFile[]): ParsedDocument => {
+  const fragmentDefinitions: FragmentDefinitionMap = new Map<string, FragmentDefinitionNode>();
   for (const { document } of documents) {
     if (!document) {
       throw new Error('Missing document');
     }
     for (const definition of document.definitions) {
       if (definition.kind === Kind.FRAGMENT_DEFINITION) {
-        fragmentDefinitions.set(definition.name.value, definition);
+        addFragmentDefinition(fragmentDefinitions, definition);
       }
     }
   }
 
-  const result = documents.reduce<ParseResult>((result, { document }) => {
+  const context = createParseContext(schema, fragmentDefinitions);
+  const fragmentsByName = new Map<string, ReturnType<typeof parseFragmentDefinition>>();
+  const operations: ParsedOperation[] = [];
+
+  for (const { document } of documents) {
     if (!document) {
       throw new Error('Missing document');
     }
-    const operations = document.definitions.filter(
-      (d): d is OperationDefinitionNode => d.kind === Kind.OPERATION_DEFINITION
-    );
+
     const fragments = document.definitions.filter(
-      (d): d is FragmentDefinitionNode => d.kind === Kind.FRAGMENT_DEFINITION
+      (definition): definition is FragmentDefinitionNode =>
+        definition.kind === Kind.FRAGMENT_DEFINITION
     );
+    for (const fragment of fragments) {
+      fragmentsByName.set(fragment.name.value, parseFragmentDefinition(fragment, context));
+    }
 
-    const withFragments = fragments.reduce<ParseResult>((acc, fragment) => {
-      return acc.merge(parseFragmentDefinition(fragment, schema, config, fragmentDefinitions));
-    }, result);
+    const operationDefinitions = document.definitions.filter(
+      (definition): definition is OperationDefinitionNode =>
+        definition.kind === Kind.OPERATION_DEFINITION
+    );
+    for (const operation of operationDefinitions) {
+      operations.push(parseOperation(operation, context));
+    }
+  }
 
-    return operations.reduce<ParseResult>((acc, operation) => {
-      return acc.merge(parseOperation(operation, schema, config, fragmentDefinitions));
-    }, withFragments);
-  }, new ParseResult());
-  return result;
+  return {
+    schemaTypes: context.schemaTypes,
+    operations,
+    fragments: Array.from(fragmentsByName.values()),
+  };
 };
 
 export default parse;

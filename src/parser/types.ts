@@ -1,74 +1,62 @@
-export enum GQLKind {
-  String = 'string',
-  Boolean = 'boolean',
-  Int = 'int',
-  Float = 'float',
-  Union = 'union',
-  Enum = 'enum',
-  Object = 'object',
-}
+export type ParsedScalarKind = 'string' | 'boolean' | 'int' | 'float';
 
-export type SimpleGQLType = {
-  kind: GQLKind.Boolean | GQLKind.Float | GQLKind.Int | GQLKind.String;
-  nullable: boolean;
-};
+export type ParsedTypeRef =
+  | {
+      kind: 'scalar';
+      name: ParsedScalarKind;
+      nullable: boolean;
+      isList: boolean;
+    }
+  | {
+      kind: 'object';
+      name: string;
+      nullable: boolean;
+      isList: boolean;
+    };
 
-export type UnionGQLType = {
-  kind: GQLKind.Union;
+export type ParsedSelectionSet = ParsedSelection[];
+
+export type ParsedFieldSelection = {
+  kind: 'field';
   name: string;
-  id: string;
-  nullable: boolean;
+  type: ParsedTypeRef;
+  selectionSet?: ParsedSelectionSet;
 };
 
-export type EnumGQLType = {
-  kind: GQLKind.Enum;
+export type ParsedFragmentSpread = {
+  kind: 'fragment-spread';
   name: string;
-  id: string;
-  nullable: boolean;
 };
 
-export type ObjectGQLType = {
-  kind: GQLKind.Object;
+export type ParsedSelection = ParsedFieldSelection | ParsedFragmentSpread;
+
+export type ParsedVariable = {
   name: string;
-  id: string;
-  nullable: boolean;
+  type: ParsedTypeRef;
 };
 
-export type GQLType = SimpleGQLType | UnionGQLType | EnumGQLType | ObjectGQLType;
-
-export type FieldValue = {
-  type: GQLType;
+export type ParsedOperation = {
   name: string;
-  isList?: boolean; // True if this field is a list/array
-  schemaTypeName?: string; // The underlying GraphQL object type name for object fields
-  selectedFields?: string[]; // For object types, the field names that were selected
-  fragmentSpreads?: string[]; // Named fragments directly spread onto this object field
+  operationType: 'Query' | 'Mutation';
+  rootTypeName: 'Query' | 'Mutation';
+  variables: ParsedVariable[];
+  selectionSet: ParsedSelectionSet;
 };
 
-export type ClassObject = {
-  id: string;
-  name: string;
-  inputs: FieldValue[];
-  outputs: FieldValue[];
-  selectedOutputs?: FieldValue[]; // Fields actually selected across queries (only set when multiple queries)
-  isInput: boolean;
-  operation?: 'Query' | 'Mutation';
-  isSelectionBuilder?: boolean; // Synthetic builder for a concrete field selection
-  // TODO: This is a rendering property so shouldn't really live here
-  shouldInline?: boolean;
-  isCompleteSchema?: boolean; // True if this represents all fields from the schema
-  hasMultipleQueries?: boolean; // True if multiple queries selected different fields
-  userDefined?: { path: string; exportName?: string }; // User-provided type import info
-};
-
-export type UnionObject = {
-  name: string;
-  subTypes: string[];
-};
-
-export type FragmentObject = {
-  id: string;
+export type ParsedFragment = {
   name: string;
   typeName: string;
-  outputs: FieldValue[];
+  selectionSet: ParsedSelectionSet;
+};
+
+export type ParsedSchemaType = {
+  name: string;
+  kind: 'object' | 'input';
+  fields: ParsedFieldSelection[];
+};
+
+export type ParsedDocument = {
+  schemaTypes: Map<string, ParsedSchemaType>;
+  operations: ParsedOperation[];
+  fragments: ParsedFragment[];
 };

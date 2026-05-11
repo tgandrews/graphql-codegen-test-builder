@@ -1,322 +1,274 @@
 import {
   FragmentDefinitionNode,
+  GraphQLInputObjectType,
   GraphQLObjectType,
   GraphQLOutputType,
   GraphQLScalarType,
   GraphQLSchema,
-  InputValueDefinitionNode,
+  GraphQLType,
+  isInputObjectType,
   isListType,
   isNonNullType,
   isObjectType,
   isScalarType,
   Kind,
-  ListTypeNode,
-  NamedTypeNode,
   OperationDefinitionNode,
   OperationTypeNode,
   SelectionNode,
   TypeNode,
   VariableDefinitionNode,
 } from 'graphql';
-import { ClassObject, GQLKind, GQLType, FieldValue, SimpleGQLType } from './types';
-import { ParseResult } from './ParseResult';
-import { mergeFieldValuesByName } from './merge';
-import { Config } from '../types';
-import { capitalise } from '../utils';
+import {
+  ParsedFieldSelection,
+  ParsedFragment,
+  ParsedOperation,
+  ParsedScalarKind,
+  ParsedSchemaType,
+  ParsedSelection,
+  ParsedSelectionSet,
+  ParsedTypeRef,
+  ParsedVariable,
+} from './types';
 
-type FragmentDefinitionMap = Map<string, FragmentDefinitionNode>;
+export type FragmentDefinitionMap = Map<string, FragmentDefinitionNode>;
 
-type SelectionParseResult = {
-  outputs: FieldValue[];
-  result: ParseResult;
-  fragmentSpreads: string[];
+type ParseContext = {
+  schema: GraphQLSchema;
+  fragmentDefinitions: FragmentDefinitionMap;
+  schemaTypes: Map<string, ParsedSchemaType>;
 };
 
-function applyUserDefinedClassConfig(
-  klass: Omit<ClassObject, 'id'>,
-  config: Config
-): Omit<ClassObject, 'id'> {
-  const userDefined = config.userDefinedClasses?.[klass.name];
-  if (!userDefined) {
-    return klass;
-  }
-
-  return {
-    ...klass,
-    userDefined,
-  };
-}
-
-function parseScalarType(fieldType: GraphQLScalarType, nullable: boolean): SimpleGQLType {
+function parseScalarName(fieldType: GraphQLScalarType): ParsedScalarKind {
   switch (fieldType.name) {
     case 'String':
     case 'ID':
-      return { kind: GQLKind.String, nullable };
+      return 'string';
     case 'Int':
-      return { kind: GQLKind.Int, nullable };
+      return 'int';
     case 'Boolean':
-      return { kind: GQLKind.Boolean, nullable };
+      return 'boolean';
     case 'Float':
-      return { kind: GQLKind.Float, nullable };
+      return 'float';
     default:
       throw new Error(`Unknown scalar type: ${fieldType.name}`);
   }
 }
 
-function parseOutputType(fieldType: GraphQLOutputType, nullable: boolean): GQLType {
-  if (isScalarType(fieldType)) {
-    return parseScalarType(fieldType, nullable);
+function unwrapType(fieldType: GraphQLType): {
+  namedType: GraphQLType;
+  nullable: boolean;
+  isList: boolean;
+} {
+  let currentType = fieldType;
+  let nullable = true;
+  let isList = false;
+
+  if (isNonNullType(currentType)) {
+    nullable = false;
+    currentType = currentType.ofType;
   }
-  if (isObjectType(fieldType)) {
+
+  if (isListType(currentType)) {
+    isList = true;
+    currentType = currentType.ofType;
+    if (isNonNullType(currentType)) {
+      currentType = currentType.ofType;
+    }
+  }
+
+  return { namedType: currentType, nullable, isList };
+}
+
+function parseOutputType(fieldType: GraphQLOutputType): ParsedTypeRef {
+  const { namedType, nullable, isList } = unwrapType(fieldType);
+  if (isScalarType(namedType)) {
     return {
-      id: `${fieldType.name}:output`,
-      name: fieldType.name,
-      kind: GQLKind.Object,
+      kind: 'scalar',
+      name: parseScalarName(namedType),
       nullable,
+      isList,
     };
   }
+
+  if (isObjectType(namedType)) {
+    return {
+      kind: 'object',
+      name: namedType.name,
+      nullable,
+      isList,
+    };
+  }
+
   throw new Error(`Unable to parse type: ${fieldType.toString()}`);
 }
 
-function parseInputType(fieldType: TypeNode, nullable: boolean): GQLType {
-  if (fieldType.kind === Kind.NAMED_TYPE) {
-    switch (fieldType.name.value) {
-      case 'String':
-      case 'ID':
-        return { kind: GQLKind.String, nullable };
-      case 'Int':
-        return { kind: GQLKind.Int, nullable };
-      case 'Boolean':
-        return { kind: GQLKind.Boolean, nullable };
-      case 'Float':
-        return { kind: GQLKind.Float, nullable };
-      default:
-        throw new Error(`Unknown named type: ${fieldType.name.value}`);
+function parseInputType(typeNode: TypeNode): ParsedTypeRef {
+  let currentType = typeNode;
+  let nullable = true;
+  let isList = false;
+
+  if (currentType.kind === Kind.NON_NULL_TYPE) {
+    nullable = false;
+    currentType = currentType.type;
+  }
+
+  if (currentType.kind === Kind.LIST_TYPE) {
+    isList = true;
+    currentType = currentType.type;
+    if (currentType.kind === Kind.NON_NULL_TYPE) {
+      currentType = currentType.type;
     }
   }
-  throw new Error(`Unsupported input type: ${fieldType.kind} - ${JSON.stringify(fieldType)}`);
+
+  if (currentType.kind !== Kind.NAMED_TYPE) {
+    throw new Error(`Unsupported input type: ${currentType.kind} - ${JSON.stringify(currentType)}`);
+  }
+
+  switch (currentType.name.value) {
+    case 'String':
+    case 'ID':
+      return { kind: 'scalar', name: 'string', nullable, isList };
+    case 'Int':
+      return { kind: 'scalar', name: 'int', nullable, isList };
+    case 'Boolean':
+      return { kind: 'scalar', name: 'boolean', nullable, isList };
+    case 'Float':
+      return { kind: 'scalar', name: 'float', nullable, isList };
+    default:
+      return { kind: 'object', name: currentType.name.value, nullable, isList };
+  }
 }
 
-function parseCompleteSchemaType(schemaType: GraphQLObjectType, config: Config): ParseResult {
-  const fields = schemaType.getFields();
-  const result = new ParseResult();
-
-  const outputs: FieldValue[] = [];
-
-  for (const [fieldName, field] of Object.entries(fields)) {
-    let fieldType = field.type;
-    let nullable = true;
-    if (isNonNullType(fieldType)) {
-      fieldType = fieldType.ofType;
-      nullable = false;
-    }
-
-    if (isObjectType(fieldType)) {
-      // For object types, we still need to recurse to generate their definitions
-      outputs.push({
-        name: fieldName,
-        type: {
-          id: `${fieldType.name}:output`,
-          name: fieldType.name,
-          kind: GQLKind.Object,
-          nullable,
-        },
-      });
-      result.merge(parseCompleteSchemaType(fieldType, config));
-    } else {
-      outputs.push({
-        name: fieldName,
-        type: parseOutputType(fieldType, nullable),
-      });
-    }
+function addObjectSchemaType(schemaType: GraphQLObjectType, context: ParseContext): void {
+  if (context.schemaTypes.has(schemaType.name)) {
+    return;
   }
 
-  result.addClass(
-    applyUserDefinedClassConfig(
-      {
-        name: schemaType.name,
-        inputs: [],
-        outputs,
-        isInput: false,
-        isCompleteSchema: true,
-      },
-      config
-    )
+  const fields = Object.entries(schemaType.getFields()).map<ParsedFieldSelection>(
+    ([fieldName, field]) => {
+      const type = parseOutputType(field.type);
+      return {
+        kind: 'field',
+        name: fieldName,
+        type,
+      };
+    }
   );
 
-  return result;
+  context.schemaTypes.set(schemaType.name, {
+    name: schemaType.name,
+    kind: 'object',
+    fields,
+  });
+
+  for (const field of fields) {
+    if (field.type.kind !== 'object') {
+      continue;
+    }
+    const nestedType = context.schema.getType(field.type.name);
+    if (nestedType && isObjectType(nestedType)) {
+      addObjectSchemaType(nestedType, context);
+    }
+  }
+}
+
+function addInputSchemaType(schemaType: GraphQLInputObjectType, context: ParseContext): void {
+  if (context.schemaTypes.has(schemaType.name)) {
+    return;
+  }
+
+  const fields = Object.entries(schemaType.getFields()).map<ParsedFieldSelection>(
+    ([fieldName, field]) => {
+      if (!field.astNode) {
+        throw new Error(`Input field ${fieldName} is missing an AST node`);
+      }
+      const type = parseInputType(field.astNode.type);
+      if (type.kind === 'object') {
+        const nestedType = context.schema.getType(type.name);
+        if (!nestedType || !isInputObjectType(nestedType)) {
+          throw new Error(`GraphQL type ${type.name} is not an input object type`);
+        }
+        addInputSchemaType(nestedType, context);
+      }
+      return {
+        kind: 'field',
+        name: fieldName,
+        type,
+      };
+    }
+  );
+
+  context.schemaTypes.set(schemaType.name, {
+    name: schemaType.name,
+    kind: 'input',
+    fields,
+  });
 }
 
 function parseSelectionSet(
-  name: string,
   selections: readonly SelectionNode[],
   schemaType: GraphQLObjectType,
-  config: Config,
-  fragmentDefinitions: FragmentDefinitionMap,
-  activeFragmentPath: string[] = [],
-  selectionOwnerName = name
-): SelectionParseResult {
-  const parsedSelections = selections.reduce<SelectionParseResult>(
-    (current, selection) => {
-      const parsed = parseSelection(
-        selection,
-        schemaType,
-        config,
-        fragmentDefinitions,
-        activeFragmentPath,
-        selectionOwnerName
-      );
-      return {
-        outputs: [...current.outputs, ...parsed.outputs],
-        result: current.result.merge(parsed.result),
-        fragmentSpreads: [...current.fragmentSpreads, ...parsed.fragmentSpreads],
-      };
-    },
-    {
-      outputs: [],
-      result: new ParseResult(),
-      fragmentSpreads: [],
-    }
+  context: ParseContext,
+  activeFragmentPath: string[] = []
+): ParsedSelectionSet {
+  addObjectSchemaType(schemaType, context);
+
+  return selections.map((selection) =>
+    parseSelection(selection, schemaType, context, activeFragmentPath)
   );
-
-  const mergedOutputs = mergeFieldValuesByName(parsedSelections.outputs);
-  const fragmentSpreads = Array.from(new Set(parsedSelections.fragmentSpreads));
-
-  const completeTypeResult = parseCompleteSchemaType(schemaType, config);
-  parsedSelections.result.addClass(
-    applyUserDefinedClassConfig(
-      {
-        name,
-        inputs: [],
-        outputs: mergedOutputs,
-        isInput: false,
-      },
-      config
-    )
-  );
-
-  return {
-    ...parsedSelections,
-    outputs: mergedOutputs,
-    fragmentSpreads,
-    result: parsedSelections.result.merge(completeTypeResult),
-  };
 }
 
 function parseFieldSelection(
   node: SelectionNode,
   schemaType: GraphQLObjectType,
-  config: Config,
-  fragmentDefinitions: FragmentDefinitionMap,
-  activeFragmentPath: string[] = [],
-  selectionOwnerName = schemaType.name
-): SelectionParseResult {
+  context: ParseContext,
+  activeFragmentPath: string[] = []
+): ParsedFieldSelection {
   if (node.kind !== Kind.FIELD) {
     throw new Error(`Unsupported field selection node type: ${node.kind}`);
   }
+
   const fieldName = node.name.value;
-  let fieldType = schemaType.getFields()[fieldName]?.type;
-  if (!fieldType) {
+  const schemaField = schemaType.getFields()[fieldName];
+  if (!schemaField) {
     throw new Error(`Unable to find field type for: ${fieldName} in ${schemaType}`);
   }
-  let nullable = true;
-  if (isNonNullType(fieldType)) {
-    fieldType = fieldType.ofType;
-    nullable = false;
-  }
 
-  // Handle list types by unwrapping to get the inner type
-  let isList = false;
-  if (isListType(fieldType)) {
-    isList = true;
-    let innerType = fieldType.ofType;
-    // The inner type might also be non-null (e.g., [User!])
-    if (isNonNullType(innerType)) {
-      innerType = innerType.ofType;
-    }
-    fieldType = innerType;
-  }
-
+  const type = parseOutputType(schemaField.type);
   if (node.selectionSet?.selections) {
-    if (!isObjectType(fieldType)) {
-      throw new Error(`Found a selection set on a non-object type. Kind: ${fieldType}`);
+    if (type.kind !== 'object') {
+      throw new Error(`Found a selection set on a non-object type. Kind: ${schemaField.type}`);
     }
-    const typeName = fieldType.name;
-    const result = parseSelectionSet(
-      typeName,
-      node.selectionSet.selections,
-      fieldType,
-      config,
-      fragmentDefinitions,
-      activeFragmentPath,
-      `${selectionOwnerName}${capitalise(fieldName)}`
-    );
-    const hasDirectSelections = node.selectionSet.selections.some(
-      (selection) => selection.kind === Kind.FIELD
-    );
-    const shouldComposeFragments =
-      result.fragmentSpreads.length > 1 ||
-      (result.fragmentSpreads.length > 0 && hasDirectSelections);
-    const selectionClassName = shouldComposeFragments
-      ? `${selectionOwnerName}${capitalise(fieldName)}Selection`
-      : typeName;
-    const klass = result.result.getOutputClass(typeName);
-    if (shouldComposeFragments) {
-      result.result.addClass(
-        applyUserDefinedClassConfig(
-          {
-            name: selectionClassName,
-            inputs: [],
-            outputs: result.outputs,
-            isInput: false,
-            isSelectionBuilder: true,
-          },
-          config
-        )
-      );
+    const nestedType = context.schema.getType(type.name);
+    if (!nestedType || !isObjectType(nestedType)) {
+      throw new Error(`Unable to find object type for: ${type.name}`);
     }
-    const fieldValue: FieldValue = {
-      name: fieldName,
-      type: {
-        id: `${selectionClassName}:output`,
-        name: selectionClassName,
-        kind: GQLKind.Object,
-        nullable,
-      },
-      isList,
-      schemaTypeName: typeName,
-      selectedFields: (klass?.selectedOutputs ?? klass?.outputs)?.map((f) => f.name) ?? [],
-      fragmentSpreads:
-        !shouldComposeFragments && result.fragmentSpreads.length > 0
-          ? result.fragmentSpreads
-          : undefined,
-    };
     return {
-      outputs: [fieldValue],
-      result: result.result,
-      fragmentSpreads: [],
+      kind: 'field',
+      name: fieldName,
+      type,
+      selectionSet: parseSelectionSet(
+        node.selectionSet.selections,
+        nestedType,
+        context,
+        activeFragmentPath
+      ),
     };
   }
 
-  const value: FieldValue = {
-    name: fieldName,
-    type: parseOutputType(fieldType, nullable),
-    isList,
-  };
   return {
-    outputs: [value],
-    result: new ParseResult(),
-    fragmentSpreads: [],
+    kind: 'field',
+    name: fieldName,
+    type,
   };
 }
 
 function parseFragmentSelection(
   node: SelectionNode,
   schemaType: GraphQLObjectType,
-  config: Config,
-  fragmentDefinitions: FragmentDefinitionMap,
+  context: ParseContext,
   activeFragmentPath: string[] = []
-): SelectionParseResult {
+): ParsedSelection {
   if (node.kind === Kind.INLINE_FRAGMENT) {
     throw new Error('Inline fragments are not supported yet');
   }
@@ -324,7 +276,7 @@ function parseFragmentSelection(
     throw new Error(`Unsupported fragment selection node type: ${node.kind}`);
   }
 
-  const fragmentDefinition = fragmentDefinitions.get(node.name.value);
+  const fragmentDefinition = context.fragmentDefinitions.get(node.name.value);
   if (!fragmentDefinition) {
     throw new Error(`Unable to find fragment definition for: ${node.name.value}`);
   }
@@ -341,197 +293,71 @@ function parseFragmentSelection(
     );
   }
 
-  const fragmentResult = parseFragmentDefinition(
-    fragmentDefinition,
-    schemaType,
-    config,
-    fragmentDefinitions,
-    activeFragmentPath
-  );
-  const fragment = fragmentResult.getFragment(node.name.value);
-  if (!fragment) {
-    throw new Error(`Unable to parse fragment definition for: ${node.name.value}`);
-  }
+  parseFragmentDefinition(fragmentDefinition, context, [...activeFragmentPath, node.name.value]);
 
   return {
-    outputs: fragment.outputs,
-    result: fragmentResult,
-    fragmentSpreads: [node.name.value],
+    kind: 'fragment-spread',
+    name: node.name.value,
   };
 }
 
 function parseSelection(
   node: SelectionNode,
   schemaType: GraphQLObjectType,
-  config: Config,
-  fragmentDefinitions: FragmentDefinitionMap,
-  activeFragmentPath: string[] = [],
-  selectionOwnerName = schemaType.name
-): SelectionParseResult {
+  context: ParseContext,
+  activeFragmentPath: string[] = []
+): ParsedSelection {
   switch (node.kind) {
     case Kind.FIELD:
-      return parseFieldSelection(
-        node,
-        schemaType,
-        config,
-        fragmentDefinitions,
-        activeFragmentPath,
-        selectionOwnerName
-      );
+      return parseFieldSelection(node, schemaType, context, activeFragmentPath);
     case Kind.FRAGMENT_SPREAD:
     case Kind.INLINE_FRAGMENT:
-      return parseFragmentSelection(
-        node,
-        schemaType,
-        config,
-        fragmentDefinitions,
-        activeFragmentPath
-      );
+      return parseFragmentSelection(node, schemaType, context, activeFragmentPath);
   }
-}
-
-function isNamedTypeNode(typeNode: NamedTypeNode | ListTypeNode): typeNode is NamedTypeNode {
-  return typeNode.kind === Kind.NAMED_TYPE;
-}
-
-function parseInputValueField(field: InputValueDefinitionNode): {
-  field: FieldValue;
-  result: ParseResult;
-} {
-  let fieldType = field.type;
-  let nullable = true;
-  if (field.type.kind === Kind.NON_NULL_TYPE) {
-    nullable = false;
-    fieldType = field.type.type;
-  }
-
-  return {
-    field: {
-      name: field.name.value,
-      type: parseInputType(fieldType, nullable),
-    },
-    result: new ParseResult(),
-  };
 }
 
 function parseVariableDefinition(
   variable: VariableDefinitionNode,
-  schema: GraphQLSchema,
-  config: Config
-): { input: FieldValue; result: ParseResult } {
-  if (!variable.type) {
-    throw new Error(`Variable ${variable.variable.name.value} has no type`);
-  }
+  context: ParseContext
+): ParsedVariable {
   const name = variable.variable.name.value;
+  const type = parseInputType(variable.type);
 
-  let nullable = true;
-  let variableType: NamedTypeNode | ListTypeNode;
-  if (variable.type.kind === Kind.NON_NULL_TYPE) {
-    nullable = false;
-    variableType = variable.type.type;
-  } else {
-    variableType = variable.type;
+  if (type.kind !== 'object') {
+    throw new Error(`GraphQL type ${type.name} is not an input object type`);
   }
 
-  if (!isNamedTypeNode(variableType)) {
-    throw new Error(`Unsupported variable type: ${variableType}`);
+  const graphQLType = context.schema.getType(type.name);
+  if (!graphQLType || !isInputObjectType(graphQLType)) {
+    throw new Error(`GraphQL type ${type.name} is not an input object type`);
   }
 
-  const variableName = variableType.name.value;
-  const graphQLTypeName = variableType.name.value;
-  const graphQLType = schema.getType(graphQLTypeName);
-  if (!graphQLType) {
-    throw new Error(`Unable to find GraphQL type for: ${graphQLTypeName}`);
-  }
-  const astNode = graphQLType.astNode;
-  if (!astNode || astNode.kind !== Kind.INPUT_OBJECT_TYPE_DEFINITION) {
-    throw new Error(`GraphQL type ${graphQLTypeName} is not an input object type`);
-  }
+  addInputSchemaType(graphQLType, context);
 
-  const result = new ParseResult();
-  const { inputs, result: inputResult } = (astNode.fields ?? []).reduce(
-    (result, inputField): { inputs: FieldValue[]; result: ParseResult } => {
-      const parsed = parseInputValueField(inputField);
-      return {
-        inputs: [...result.inputs, parsed.field],
-        result: result.result.merge(parsed.result),
-      };
-    },
-    { inputs: [] as FieldValue[], result }
-  );
-
-  inputResult.addClass(
-    applyUserDefinedClassConfig(
-      {
-        name: graphQLTypeName,
-        inputs,
-        outputs: [],
-        isInput: true,
-      },
-      config
-    )
-  );
-
-  const input: FieldValue = {
-    name,
-    type: {
-      id: `${variableName}:input`,
-      name: variableName,
-      kind: GQLKind.Object,
-      nullable,
-    },
-  };
   return {
-    input,
-    result: inputResult,
+    name,
+    type,
   };
 }
 
 export function parseOperation(
   operation: OperationDefinitionNode,
-  schema: GraphQLSchema,
-  config: Config,
-  fragmentDefinitions: FragmentDefinitionMap
-): ParseResult {
+  context: ParseContext
+): ParsedOperation {
   if (!operation.name) {
     throw new Error('Operation has no name');
   }
 
   const schemaType =
     operation.operation === OperationTypeNode.QUERY
-      ? schema.getQueryType()
-      : schema.getMutationType();
+      ? context.schema.getQueryType()
+      : operation.operation === OperationTypeNode.MUTATION
+      ? context.schema.getMutationType()
+      : undefined;
+
   if (!schemaType) {
     throw new Error(`Unable to find schema type: ${operation.operation}`);
   }
-  const name = operation.name.value;
-  const selections = operation.selectionSet.selections;
-  const { outputs, result } = selections.reduce<{
-    outputs: FieldValue[];
-    result: ParseResult;
-  }>(
-    ({ outputs, result }, selection) => {
-      const parsed = parseSelection(selection, schemaType, config, fragmentDefinitions, [], name);
-      return {
-        outputs: [...outputs, ...parsed.outputs],
-        result: result.merge(parsed.result),
-      };
-    },
-    { outputs: [], result: new ParseResult() }
-  );
-  const mergedOutputs = mergeFieldValuesByName(outputs);
-
-  const variableDefinitions = operation.variableDefinitions ?? [];
-  const { inputs, result: variableResult } = variableDefinitions.reduce(
-    ({ inputs, result }, variable): { inputs: FieldValue[]; result: ParseResult } => {
-      const parsed = parseVariableDefinition(variable, schema, config);
-      return {
-        inputs: [...inputs, parsed.input],
-        result: result.merge(parsed.result),
-      };
-    },
-    { inputs: [] as FieldValue[], result }
-  );
 
   let operationType: 'Query' | 'Mutation';
   switch (operation.operation) {
@@ -545,58 +371,47 @@ export function parseOperation(
       throw new Error(`Unsupported operation type: "${operation.operation}"`);
   }
 
-  variableResult.addClass(
-    applyUserDefinedClassConfig(
-      {
-        name,
-        inputs,
-        outputs: mergedOutputs,
-        isInput: true,
-        operation: operationType,
-      },
-      config
-    )
-  );
-
-  return variableResult;
+  return {
+    name: operation.name.value,
+    operationType,
+    rootTypeName: operationType,
+    variables: (operation.variableDefinitions ?? []).map((variable) =>
+      parseVariableDefinition(variable, context)
+    ),
+    selectionSet: parseSelectionSet(operation.selectionSet.selections, schemaType, context),
+  };
 }
 
 export function parseFragmentDefinition(
   fragment: FragmentDefinitionNode,
-  schemaOrType: GraphQLSchema | GraphQLObjectType,
-  config: Config,
-  fragmentDefinitions: FragmentDefinitionMap,
+  context: ParseContext,
   activeFragmentPath: string[] = []
-): ParseResult {
+): ParsedFragment {
   const typeName = fragment.typeCondition.name.value;
-  const schemaType =
-    schemaOrType instanceof GraphQLSchema
-      ? schemaOrType.getType(typeName)
-      : schemaOrType.name === typeName
-      ? schemaOrType
-      : undefined;
-
+  const schemaType = context.schema.getType(typeName);
   if (!schemaType || !isObjectType(schemaType)) {
     throw new Error(`Fragment "${fragment.name.value}" must target an object type`);
   }
 
-  const currentFragmentPath = [...activeFragmentPath, fragment.name.value];
-  const selectionResult = parseSelectionSet(
-    typeName,
-    fragment.selectionSet.selections,
-    schemaType,
-    config,
-    fragmentDefinitions,
-    currentFragmentPath,
-    fragment.name.value
-  );
-  const klass = selectionResult.result.requireOutputClass(typeName);
-
-  selectionResult.result.addFragment({
+  return {
     name: fragment.name.value,
     typeName,
-    outputs: klass.selectedOutputs ?? klass.outputs,
-  });
+    selectionSet: parseSelectionSet(
+      fragment.selectionSet.selections,
+      schemaType,
+      context,
+      activeFragmentPath
+    ),
+  };
+}
 
-  return selectionResult.result;
+export function createParseContext(
+  schema: GraphQLSchema,
+  fragmentDefinitions: FragmentDefinitionMap
+): ParseContext {
+  return {
+    schema,
+    fragmentDefinitions,
+    schemaTypes: new Map(),
+  };
 }

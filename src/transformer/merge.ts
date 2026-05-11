@@ -34,7 +34,6 @@ export function mergeFieldValuesByName(fields: FieldValue[]): FieldValue[] {
 function mergeFieldArrays(arr1: FieldValue[], arr2: FieldValue[]): FieldValue[] {
   if (arr1.length > arr2.length) return arr1;
   if (arr2.length > arr1.length) return arr2;
-  // Same length - union them to avoid losing fields
   return unionFieldsByName(arr1, arr2);
 }
 
@@ -44,8 +43,6 @@ function mergeSelectedOutputs(
 ): FieldValue[] | undefined {
   if (!existing) return incoming;
   if (!incoming) return existing;
-
-  // Union the fields by name
   return unionFieldsByName(existing, incoming);
 }
 
@@ -62,7 +59,6 @@ function mergeQuerySelections(
   const existingComplete = existing.isCompleteSchema && !incoming.isCompleteSchema;
   const incomingComplete = !existing.isCompleteSchema && incoming.isCompleteSchema;
 
-  // Both are partial selections from different queries
   if (bothPartial) {
     return {
       selectedOutputs: mergeSelectedOutputs(
@@ -74,7 +70,6 @@ function mergeQuerySelections(
     };
   }
 
-  // Partial query merging with complete schema (second+ query)
   if (existingComplete) {
     return {
       selectedOutputs: mergeSelectedOutputs(existing.selectedOutputs, incoming.outputs),
@@ -83,7 +78,6 @@ function mergeQuerySelections(
     };
   }
 
-  // Complete schema merging with first query's partial selection
   if (incomingComplete) {
     return {
       selectedOutputs: existing.outputs,
@@ -92,7 +86,6 @@ function mergeQuerySelections(
     };
   }
 
-  // Both are complete (merging results from different queries)
   if (bothComplete) {
     if (existing.selectedOutputs && incoming.selectedOutputs) {
       return {
@@ -109,7 +102,6 @@ function mergeQuerySelections(
     };
   }
 
-  // Default: preserve existing
   return {
     selectedOutputs: existing.selectedOutputs,
     isCompleteSchema: existing.isCompleteSchema ?? false,
@@ -121,11 +113,9 @@ export function mergeClasses(
   existing: ClassObject,
   incoming: Omit<ClassObject, 'id'>
 ): ClassObject {
-  // Prefer the more complete lists (more fields), or union if same length
   const mergedInputs = mergeFieldArrays(incoming.inputs, existing.inputs);
   const mergedOutputs = mergeFieldArrays(incoming.outputs, existing.outputs);
 
-  // For operation classes, keep existing values
   if (existing.operation || incoming.operation) {
     return {
       ...existing,
@@ -135,7 +125,6 @@ export function mergeClasses(
     };
   }
 
-  // For non-operation classes (types), handle query selections
   const mergeResult = mergeQuerySelections(existing, incoming);
 
   return {

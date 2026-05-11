@@ -1,7 +1,7 @@
 import { PluginFunction, Types } from '@graphql-codegen/plugin-helpers';
 import parse from './parser';
 import render from './renderer';
-import optimiser from './optimiser';
+import { transform } from './transformer';
 import { log } from './logger';
 import { Config } from './types';
 
@@ -10,11 +10,11 @@ const graphqlCodegenBuilderPlugin: PluginFunction<Config, Types.ComplexPluginOut
   documents,
   config
 ) => {
-  const parseResult = parse(schema, documents, config);
-  log('parse result', parseResult);
-  const optimisedResult = optimiser(parseResult, config);
-  log('optimised result', optimisedResult);
-  const renderedOutput = render(optimisedResult);
+  const parsed = parse(schema, documents);
+  log('parse result', parsed);
+  const transformed = transform(parsed, config);
+  log('transform result', transformed);
+  const renderedOutput = render(transformed);
   return { content: renderedOutput };
 };
 

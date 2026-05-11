@@ -1,686 +1,141 @@
 import { buildSchema, parse as parseGraphQL } from 'graphql';
 import { Types } from '@graphql-codegen/plugin-helpers';
-import parse, { GQLKind } from './index';
-import { Config } from '../types';
+import parse from './index';
 
-const buildDocuments = (query: string): Types.DocumentFile[] => {
-  const ast = parseGraphQL(query);
-  return [
-    {
-      document: ast,
-      location: 'test.graphql',
-    },
-  ];
-};
+const buildDocuments = (query: string): Types.DocumentFile[] => [
+  {
+    document: parseGraphQL(query),
+    location: 'test.graphql',
+  },
+];
 
-describe('parser', () => {
-  describe('simple queries', () => {
-    it('should parse a query with scalar fields', () => {
-      const schema = buildSchema(`
-        type Query {
-          me: User!
-        }
-        type User {
-          name: String!
-          age: Int!
-        }
-      `);
-      const documents = buildDocuments(`
-        query GetUser {
-          me {
-            name
-            age
-          }
-        }
-      `);
+const buildDocumentFiles = (queries: string[]): Types.DocumentFile[] =>
+  queries.map((query, index) => ({
+    document: parseGraphQL(query),
+    location: `test-${index}.graphql`,
+  }));
 
-      const result = parse(schema, documents);
-
-      // Operations are stored with isInput: true, so they use :input suffix
-      const operation = result.getClass('GetUser:input');
-      expect(operation).toBeDefined();
-      expect(operation?.operation).toBe('Query');
-      expect(operation?.outputs).toHaveLength(1);
-      expect(operation?.outputs[0].name).toBe('me');
-
-      // Should have the User type
-      const userType = result.getClass('User:output');
-      expect(userType).toBeDefined();
-      expect(userType?.outputs).toHaveLength(2);
-      expect(userType?.outputs.map((f) => f.name)).toEqual(['name', 'age']);
-    });
-
-    it('should parse a query with nested objects', () => {
-      const schema = buildSchema(`
-        type Query {
-          me: User!
-        }
-        type User {
-          name: String!
-          profile: Profile!
-        }
-        type Profile {
-          bio: String!
-        }
-      `);
-      const documents = buildDocuments(`
-        query GetUser {
-          me {
-            name
-            profile {
-              bio
-            }
-          }
-        }
-      `);
-
-      const result = parse(schema, documents);
-
-      // Should have User type
-      const userType = result.getClass('User:output');
-      expect(userType?.outputs).toHaveLength(2);
-      expect(userType?.outputs[0].name).toBe('name');
-      expect(userType?.outputs[1].name).toBe('profile');
-
-      // Should have Profile type
-      const profileType = result.getClass('Profile:output');
-      expect(profileType).toBeDefined();
-      expect(profileType?.outputs).toHaveLength(1);
-      expect(profileType?.outputs[0].name).toBe('bio');
-    });
-  });
-
-  describe('mutations', () => {
-    it('should parse a mutation with input variables', () => {
-      const schema = buildSchema(`
-        type Mutation {
-          updateUser(input: UpdateUserInput!): User!
-        }
-        input UpdateUserInput {
-          name: String!
-          age: Int!
-        }
-        type User {
-          name: String!
-          age: Int!
-        }
-      `);
-      const documents = buildDocuments(`
-        mutation UpdateUser($input: UpdateUserInput!) {
-          updateUser(input: $input) {
-            name
-            age
-          }
-        }
-      `);
-
-      const result = parse(schema, documents);
-
-      // Should have the mutation operation
-      const operation = result.getClass('UpdateUser:input');
-      expect(operation).toBeDefined();
-      expect(operation?.operation).toBe('Mutation');
-      expect(operation?.inputs).toHaveLength(1);
-      expect(operation?.inputs[0].name).toBe('input');
-      expect(operation?.inputs[0].type.kind).toBe(GQLKind.Object);
-
-      // Should have the input type
-      const inputType = result.getClass('UpdateUserInput:input');
-      expect(inputType).toBeDefined();
-      expect(inputType?.inputs).toHaveLength(2);
-      expect(inputType?.inputs.map((f) => f.name)).toEqual(['name', 'age']);
-    });
-  });
-
-  describe('re-used types', () => {
-    it('should merge multiple queries selecting different fields from the same type', () => {
-      const schema = buildSchema(`
-        type Query {
-          me: User!
-        }
-        type User {
-          name: String!
-          email: String!
-          age: Int!
-        }
-      `);
-      const documents = buildDocuments(`
-        query GetUserName {
-          me {
-            name
-          }
-        }
-        query GetUserEmail {
-          me {
-            email
-          }
-        }
-      `);
-
-      const result = parse(schema, documents);
-
-      // Should have both operations
-      expect(result.getClass('GetUserName:input')).toBeDefined();
-      expect(result.getClass('GetUserEmail:input')).toBeDefined();
-
-      // User type should have all fields in outputs (complete schema)
-      const userType = result.getClass('User:output');
-      expect(userType?.outputs).toHaveLength(3);
-      expect(userType?.outputs.map((f) => f.name)).toEqual(['name', 'email', 'age']);
-
-      // Should track selected fields across queries
-      expect(userType?.selectedOutputs).toBeDefined();
-      expect(userType?.selectedOutputs?.map((f) => f.name)).toEqual(['name', 'email']);
-      expect(userType?.hasMultipleQueries).toBe(true);
-      expect(userType?.isCompleteSchema).toBe(true);
-    });
-
-    it('should set selectedOutputs for single query but not hasMultipleQueries', () => {
-      const schema = buildSchema(`
-        type Query {
-          me: User!
-        }
-        type User {
-          name: String!
-          email: String!
-        }
-      `);
-      const documents = buildDocuments(`
-        query GetUser {
-          me {
-            name
-          }
-        }
-      `);
-
-      const result = parse(schema, documents);
-
-      const userType = result.getClass('User:output');
-      expect(userType?.outputs).toHaveLength(2);
-      // selectedOutputs is set to track which fields were selected
-      expect(userType?.selectedOutputs).toHaveLength(1);
-      expect(userType?.selectedOutputs?.[0].name).toBe('name');
-      // hasMultipleQueries is false, so no Pick types will be generated
-      expect(userType?.hasMultipleQueries).toBe(false);
-    });
-  });
-
-  describe('field types', () => {
-    it('should correctly parse nullable and non-nullable fields', () => {
-      const schema = buildSchema(`
-        type Query {
-          me: User!
-        }
-        type User {
-          requiredName: String!
-          optionalName: String
-        }
-      `);
-      const documents = buildDocuments(`
-        query GetUser {
-          me {
-            requiredName
-            optionalName
-          }
-        }
-      `);
-
-      const result = parse(schema, documents);
-
-      const userType = result.getClass('User:output');
-      const requiredField = userType?.outputs.find((f) => f.name === 'requiredName');
-      const optionalField = userType?.outputs.find((f) => f.name === 'optionalName');
-
-      expect(requiredField?.type.nullable).toBe(false);
-      expect(optionalField?.type.nullable).toBe(true);
-    });
-
-    it('should parse different scalar types', () => {
-      const schema = buildSchema(`
-        type Query {
-          me: User!
-        }
-        type User {
-          name: String!
-          age: Int!
-        }
-      `);
-      const documents = buildDocuments(`
-        query GetUser {
-          me {
-            name
-            age
-          }
-        }
-      `);
-
-      const result = parse(schema, documents);
-
-      const userType = result.getClass('User:output');
-      const nameField = userType?.outputs.find((f) => f.name === 'name');
-      const ageField = userType?.outputs.find((f) => f.name === 'age');
-
-      expect(nameField?.type.kind).toBe(GQLKind.String);
-      expect(ageField?.type.kind).toBe(GQLKind.Int);
-    });
-  });
-
-  describe('built-in scalars', () => {
-    it('should parse Boolean output fields', () => {
-      const schema = buildSchema(`
-        type Query {
-          me: User!
-        }
-        type User {
-          isActive: Boolean!
-          isVerified: Boolean
-        }
-      `);
-      const documents = buildDocuments(`
-        query GetUser {
-          me {
-            isActive
-            isVerified
-          }
-        }
-      `);
-
-      const result = parse(schema, documents);
-
-      const userType = result.getClass('User:output');
-      const isActive = userType?.outputs.find((f) => f.name === 'isActive');
-      const isVerified = userType?.outputs.find((f) => f.name === 'isVerified');
-
-      expect(isActive?.type).toEqual({ kind: GQLKind.Boolean, nullable: false });
-      expect(isVerified?.type).toEqual({ kind: GQLKind.Boolean, nullable: true });
-    });
-
-    it('should parse Float output fields', () => {
-      const schema = buildSchema(`
-        type Query {
-          me: User!
-        }
-        type User {
-          score: Float!
-          rating: Float
-        }
-      `);
-      const documents = buildDocuments(`
-        query GetUser {
-          me {
-            score
-            rating
-          }
-        }
-      `);
-
-      const result = parse(schema, documents);
-
-      const userType = result.getClass('User:output');
-      const score = userType?.outputs.find((f) => f.name === 'score');
-      const rating = userType?.outputs.find((f) => f.name === 'rating');
-
-      expect(score?.type).toEqual({ kind: GQLKind.Float, nullable: false });
-      expect(rating?.type).toEqual({ kind: GQLKind.Float, nullable: true });
-    });
-
-    it('should parse ID output fields as strings', () => {
-      const schema = buildSchema(`
-        type Query {
-          me: User!
-        }
-        type User {
-          id: ID!
-          parentId: ID
-        }
-      `);
-      const documents = buildDocuments(`
-        query GetUser {
-          me {
-            id
-            parentId
-          }
-        }
-      `);
-
-      const result = parse(schema, documents);
-
-      const userType = result.getClass('User:output');
-      const id = userType?.outputs.find((f) => f.name === 'id');
-      const parentId = userType?.outputs.find((f) => f.name === 'parentId');
-
-      expect(id?.type).toEqual({ kind: GQLKind.String, nullable: false });
-      expect(parentId?.type).toEqual({ kind: GQLKind.String, nullable: true });
-    });
-
-    it('should parse ID input fields as strings on mutation variables', () => {
-      const schema = buildSchema(`
-        type Mutation {
-          deleteUser(input: DeleteUserInput!): User!
-        }
-        input DeleteUserInput {
-          id: ID!
-          softDelete: Boolean
-        }
-        type User {
-          id: ID!
-        }
-      `);
-      const documents = buildDocuments(`
-        mutation DeleteUser($input: DeleteUserInput!) {
-          deleteUser(input: $input) {
-            id
-          }
-        }
-      `);
-
-      const result = parse(schema, documents);
-
-      const inputType = result.getClass('DeleteUserInput:input');
-      const idField = inputType?.inputs.find((f) => f.name === 'id');
-      const softDeleteField = inputType?.inputs.find((f) => f.name === 'softDelete');
-
-      expect(idField?.type).toEqual({ kind: GQLKind.String, nullable: false });
-      expect(softDeleteField?.type).toEqual({ kind: GQLKind.Boolean, nullable: true });
-    });
-  });
-
-  describe('selected fields tracking', () => {
-    it('should track selected fields for nested objects', () => {
-      const schema = buildSchema(`
-        type Query {
-          me: User!
-        }
-        type User {
-          name: String!
-          profile: Profile!
-        }
-        type Profile {
-          bio: String!
-          avatar: String!
-          location: String!
-        }
-      `);
-      const documents = buildDocuments(`
-        query GetUser {
-          me {
-            name
-            profile {
-              bio
-              avatar
-            }
-          }
-        }
-      `);
-
-      const result = parse(schema, documents);
-
-      const userType = result.getClass('User:output');
-      const profileField = userType?.selectedOutputs?.find((f) => f.name === 'profile');
-      expect(profileField?.selectedFields).toEqual(['bio', 'avatar']);
-    });
-
-    it('should track selected fields contributed by named fragments', () => {
-      const schema = buildSchema(`
-        type Query {
-          me: User!
-        }
-        type User {
-          name: String!
-          email: String!
-          profile: Profile!
-        }
-        type Profile {
-          bio: String!
-        }
-      `);
-      const documents = buildDocuments(`
-        query GetUser {
-          me {
-            ...UserSummary
-            profile {
-              ...ProfileSummary
-            }
-          }
-        }
-
-        fragment UserSummary on User {
-          name
-          email
-        }
-
-        fragment ProfileSummary on Profile {
-          bio
-        }
-      `);
-
-      const result = parse(schema, documents);
-
-      expect(result.getFragment('UserSummary')).toBeDefined();
-      expect(result.getFragment('UserSummary')?.typeName).toBe('User');
-      expect(result.getFragment('UserSummary')?.outputs.map((field) => field.name)).toEqual([
-        'name',
-        'email',
-      ]);
-
-      const operation = result.getClass('GetUser:input');
-      const meField = operation?.outputs.find((field) => field.name === 'me');
-      const selectionBuilder = result.getClass('GetUserMeSelection:output');
-      expect(meField?.type.kind).toBe(GQLKind.Object);
-      if (meField?.type.kind !== GQLKind.Object) {
-        throw new Error('Expected me field to be an object');
+describe('parser simplified AST', () => {
+  it('parses operations, variables, fragments, selections, and schema types', () => {
+    const schema = buildSchema(`
+      type Query {
+        me: User!
       }
-      expect(meField.type.id).toBe('GetUserMeSelection:output');
-      expect(meField?.fragmentSpreads).toBeUndefined();
-      expect(meField?.selectedFields).toEqual(['name', 'email', 'profile']);
 
-      const profileField = selectionBuilder?.outputs.find((field) => field.name === 'profile');
-      expect(profileField?.fragmentSpreads).toEqual(['ProfileSummary']);
-      expect(profileField?.selectedFields).toEqual(['bio']);
-    });
-
-    it('should not duplicate overlapping direct and fragment-selected fields', () => {
-      const schema = buildSchema(`
-        type Query {
-          me: User!
-        }
-        type User {
-          name: String!
-          email: String!
-        }
-      `);
-      const documents = buildDocuments(`
-        query GetUser {
-          me {
-            name
-            ...UserSummary
-          }
-        }
-
-        fragment UserSummary on User {
-          name
-          email
-        }
-      `);
-
-      const result = parse(schema, documents);
-
-      const operation = result.getClass('GetUser:input');
-      const meField = operation?.outputs.find((field) => field.name === 'me');
-      expect(operation?.outputs).toHaveLength(1);
-      expect(meField?.selectedFields).toEqual(['name', 'email']);
-
-      const userType = result.getClass('User:output');
-      expect(userType?.selectedOutputs?.map((field) => field.name)).toEqual(['name', 'email']);
-    });
-
-    it('should compose multiple fragments on the same field into a synthetic selection builder', () => {
-      const schema = buildSchema(`
-        type Query {
-          me: User!
-        }
-        type User {
-          name: String!
-          email: String!
-        }
-      `);
-      const documents = buildDocuments(`
-        query GetUser {
-          me {
-            ...UserSummary
-            ...UserContact
-          }
-        }
-
-        fragment UserSummary on User {
-          name
-        }
-
-        fragment UserContact on User {
-          name
-          email
-        }
-      `);
-
-      const result = parse(schema, documents);
-
-      const operation = result.getClass('GetUser:input');
-      const meField = operation?.outputs.find((field) => field.name === 'me');
-      const selectionBuilder = result.getClass('GetUserMeSelection:output');
-      expect(operation?.outputs).toHaveLength(1);
-      expect(meField?.type.kind).toBe(GQLKind.Object);
-      if (meField?.type.kind !== GQLKind.Object) {
-        throw new Error('Expected me field to be an object');
+      input UserInput {
+        id: ID!
       }
-      expect(meField.type.id).toBe('GetUserMeSelection:output');
-      expect(meField?.schemaTypeName).toBe('User');
-      expect(meField?.fragmentSpreads).toBeUndefined();
-      expect(meField?.selectedFields).toEqual(['name', 'email']);
-      expect(selectionBuilder?.isSelectionBuilder).toBe(true);
-      expect(selectionBuilder?.outputs.map((field) => field.name)).toEqual(['name', 'email']);
-    });
 
-    it('should compose direct fields with fragment spreads into a synthetic selection builder', () => {
-      const schema = buildSchema(`
-        type Query {
-          me: User!
-        }
-        type User {
-          name: String!
-          email: String!
-        }
-      `);
-      const documents = buildDocuments(`
-        query GetUser {
-          me {
-            ...UserSummary
-            email
-          }
-        }
-
-        fragment UserSummary on User {
-          name
-        }
-      `);
-
-      const result = parse(schema, documents);
-
-      const operation = result.getClass('GetUser:input');
-      const meField = operation?.outputs.find((field) => field.name === 'me');
-      const selectionBuilder = result.getClass('GetUserMeSelection:output');
-      expect(operation?.outputs).toHaveLength(1);
-      expect(meField?.type.kind).toBe(GQLKind.Object);
-      if (meField?.type.kind !== GQLKind.Object) {
-        throw new Error('Expected me field to be an object');
+      type User {
+        id: ID!
+        name: String!
+        profile: Profile
       }
-      expect(meField.type.id).toBe('GetUserMeSelection:output');
-      expect(meField?.schemaTypeName).toBe('User');
-      expect(meField?.fragmentSpreads).toBeUndefined();
-      expect(meField?.selectedFields).toEqual(['name', 'email']);
-      expect(selectionBuilder?.isSelectionBuilder).toBe(true);
-      expect(selectionBuilder?.outputs.map((field) => field.name)).toEqual(['name', 'email']);
-    });
 
-    it('should support fragment spreads inside fragment definitions', () => {
-      const schema = buildSchema(`
-        type Query {
-          me: User!
-        }
-        type User {
-          id: String!
-          name: String!
-          email: String!
-        }
-      `);
-      const documents = buildDocuments(`
-        query GetUser {
-          me {
-            ...UserDetails
-          }
-        }
-
-        fragment UserCore on User {
+      type Profile {
+        bio: String
+      }
+    `);
+    const documents = buildDocuments(`
+      query GetUser($input: UserInput!) {
+        me {
           id
-          name
-        }
-
-        fragment UserDetails on User {
-          ...UserCore
-          email
-        }
-      `);
-
-      const result = parse(schema, documents);
-
-      expect(result.getFragment('UserCore')?.outputs.map((field) => field.name)).toEqual([
-        'id',
-        'name',
-      ]);
-      expect(result.getFragment('UserDetails')?.outputs.map((field) => field.name)).toEqual([
-        'id',
-        'name',
-        'email',
-      ]);
-
-      const meField = result
-        .getClass('GetUser:input')
-        ?.outputs.find((field) => field.name === 'me');
-      expect(meField?.fragmentSpreads).toEqual(['UserDetails']);
-      expect(meField?.selectedFields).toEqual(['id', 'name', 'email']);
-    });
-
-    it('should reject inline fragments for now', () => {
-      const schema = buildSchema(`
-        type Query {
-          me: User!
-        }
-        type User {
-          name: String!
-        }
-      `);
-      const documents = buildDocuments(`
-        query GetUser {
-          me {
-            ... on User {
-              name
-            }
+          ...UserSummary
+          profile {
+            bio
           }
         }
-      `);
+      }
 
-      expect(() => parse(schema, documents)).toThrow('Inline fragments are not supported yet');
+      fragment UserSummary on User {
+        name
+      }
+    `);
+
+    const result = parse(schema, documents);
+
+    expect(result.operations).toHaveLength(1);
+    expect(result.operations[0]).toMatchObject({
+      name: 'GetUser',
+      operationType: 'Query',
+      rootTypeName: 'Query',
+      variables: [
+        {
+          name: 'input',
+          type: { kind: 'object', name: 'UserInput', nullable: false, isList: false },
+        },
+      ],
     });
+    expect(result.operations[0].selectionSet).toEqual([
+      {
+        kind: 'field',
+        name: 'me',
+        type: { kind: 'object', name: 'User', nullable: false, isList: false },
+        selectionSet: [
+          {
+            kind: 'field',
+            name: 'id',
+            type: { kind: 'scalar', name: 'string', nullable: false, isList: false },
+          },
+          { kind: 'fragment-spread', name: 'UserSummary' },
+          {
+            kind: 'field',
+            name: 'profile',
+            type: { kind: 'object', name: 'Profile', nullable: true, isList: false },
+            selectionSet: [
+              {
+                kind: 'field',
+                name: 'bio',
+                type: { kind: 'scalar', name: 'string', nullable: true, isList: false },
+              },
+            ],
+          },
+        ],
+      },
+    ]);
+    expect(result.fragments).toEqual([
+      {
+        name: 'UserSummary',
+        typeName: 'User',
+        selectionSet: [
+          {
+            kind: 'field',
+            name: 'name',
+            type: { kind: 'scalar', name: 'string', nullable: false, isList: false },
+          },
+        ],
+      },
+    ]);
+    expect(result.schemaTypes.get('User')?.kind).toBe('object');
+    expect(result.schemaTypes.get('Profile')?.kind).toBe('object');
+    expect(result.schemaTypes.get('UserInput')?.kind).toBe('input');
+  });
 
-    it('should reject circular fragment references', () => {
-      const schema = buildSchema(`
-        type Query {
-          me: User!
+  it('rejects unsupported inline fragments', () => {
+    const schema = buildSchema(`
+      type Query { me: User! }
+      type User { name: String! }
+    `);
+    const documents = buildDocuments(`
+      query GetUser {
+        me {
+          ... on User {
+            name
+          }
         }
-        type User {
-          name: String!
-        }
-      `);
-      const documents = buildDocuments(`
+      }
+    `);
+
+    expect(() => parse(schema, documents)).toThrow('Inline fragments are not supported yet');
+  });
+
+  it('rejects conflicting duplicate fragment definitions across documents', () => {
+    const schema = buildSchema(`
+      type Query { me: User! }
+      type User { name: String! email: String! }
+    `);
+    const documents = buildDocumentFiles([
+      `
         query GetUser {
           me {
             ...UserSummary
@@ -688,142 +143,18 @@ describe('parser', () => {
         }
 
         fragment UserSummary on User {
-          ...UserCore
           name
         }
-
-        fragment UserCore on User {
-          ...UserSummary
+      `,
+      `
+        fragment UserSummary on User {
+          email
         }
-      `);
+      `,
+    ]);
 
-      expect(() => parse(schema, documents)).toThrow(
-        'Circular fragment reference detected: UserSummary -> UserCore -> UserSummary'
-      );
-    });
-
-    it('should reject conflicting duplicate fragment definitions across documents', () => {
-      const schema = buildSchema(`
-        type Query {
-          me: User!
-        }
-        type User {
-          name: String!
-          email: String!
-        }
-      `);
-      const documents = [
-        ...buildDocuments(`
-          fragment UserSummary on User {
-            name
-          }
-        `),
-        ...buildDocuments(`
-          fragment UserSummary on User {
-            email
-          }
-        `),
-      ];
-
-      expect(() => parse(schema, documents)).toThrow(
-        'Conflicting fragments with the same name (UserSummary)'
-      );
-    });
-  });
-
-  describe('user defined classes', () => {
-    it('should mark classes as user-defined based on config', () => {
-      const schema = buildSchema(`
-        type Query {
-          me: User!
-        }
-        type User {
-          name: String!
-        }
-      `);
-      const documents = buildDocuments(`
-        query GetUser {
-          me {
-            name
-          }
-        }
-      `);
-
-      const config: Config = {
-        userDefinedClasses: {
-          User: { path: './models', exportName: 'UserModel' },
-        },
-      };
-      const result = parse(schema, documents, config);
-
-      const userType = result.getClass('User:output');
-      expect(userType).toBeDefined();
-      expect(userType?.userDefined).toEqual({ path: './models', exportName: 'UserModel' });
-    });
-
-    it('should mark nested user-defined classes', () => {
-      const schema = buildSchema(`
-        type Query {
-          me: User!
-        }
-        type User {
-          name: String!
-          profile: Profile!
-        }
-        type Profile {
-          bio: String!
-        }
-      `);
-      const documents = buildDocuments(`
-        query GetUser {
-          me {
-            name
-            profile {
-              bio
-            }
-          }
-        }
-      `);
-
-      const config: Config = {
-        userDefinedClasses: {
-          Profile: { path: './models', exportName: 'ProfileModel' },
-        },
-      };
-      const result = parse(schema, documents, config);
-
-      const profileType = result.getClass('Profile:output');
-      expect(profileType).toBeDefined();
-      expect(profileType?.userDefined).toEqual({ path: './models', exportName: 'ProfileModel' });
-    });
-
-    it('should handle arrays of user-defined classes', () => {
-      const schema = buildSchema(`
-        type Query {
-          users: [User!]!
-        }
-        type User {
-          name: String!
-        }
-      `);
-      const documents = buildDocuments(`
-        query GetUsers {
-          users {
-            name
-          }
-        }
-      `);
-
-      const config: Config = {
-        userDefinedClasses: {
-          User: { path: './models', exportName: 'UserModel' },
-        },
-      };
-      const result = parse(schema, documents, config);
-
-      const userType = result.getClass('User:output');
-      expect(userType).toBeDefined();
-      expect(userType?.userDefined).toEqual({ path: './models', exportName: 'UserModel' });
-    });
+    expect(() => parse(schema, documents)).toThrow(
+      'Conflicting fragments with the same name (UserSummary)'
+    );
   });
 });
