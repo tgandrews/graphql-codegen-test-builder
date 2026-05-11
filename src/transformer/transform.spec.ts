@@ -170,4 +170,89 @@ describe('transformer', () => {
 
     expect(result.classes.find((klass) => klass.name === 'User')?.shouldInline).toBeUndefined();
   });
+
+  it('recursively builds nested input object classes', () => {
+    const schema = `
+      type Mutation {
+        createUser(input: CreateUserInput!): User!
+      }
+
+      input CreateUserInput {
+        name: String!
+        profile: ProfileInput!
+      }
+
+      input ProfileInput {
+        bio: String
+      }
+
+      type User {
+        name: String!
+      }
+    `;
+    const query = `
+      mutation CreateUser($input: CreateUserInput!) {
+        createUser(input: $input) {
+          name
+        }
+      }
+    `;
+
+    const result = runTransform(query, schema, { inlineFieldCountThreshold: 1 });
+
+    expect(result.classes.find((klass) => klass.name === 'CreateUserInput')?.inputs).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          name: 'profile',
+          type: expect.objectContaining({ id: 'ProfileInput:input' }),
+        }),
+      ])
+    );
+    expect(result.classes.find((klass) => klass.name === 'ProfileInput')?.isInput).toBe(true);
+  });
+
+  it('emits declarations with valid discriminated shapes', () => {
+    const schema = `
+      type Query {
+        me: User!
+      }
+
+      type User {
+        name: String!
+      }
+    `;
+    const query = `
+      query GetUser {
+        me {
+          name
+        }
+      }
+    `;
+
+    const result = runTransform(query, schema);
+
+    const typeAlias = result.declarations.find(
+      (declaration) => declaration.kind === 'type-alias' && declaration.name === 'MockUserType'
+    );
+    const builder = result.declarations.find(
+      (declaration) =>
+        declaration.kind === 'builder' && declaration.name === 'MockGetUserQueryBuilder'
+    );
+
+    expect(typeAlias).toEqual({
+      kind: 'type-alias',
+      name: 'MockUserType',
+      fields: [{ name: 'name', type: { kind: 'string', nullable: false }, isList: false }],
+    });
+    expect(builder).toEqual({
+      kind: 'builder',
+      name: 'MockGetUserQueryBuilder',
+      source: 'operation',
+      operationType: 'Query',
+      inputFields: [],
+      outputFields: expect.any(Array),
+    });
+    expect(builder).not.toHaveProperty('fields');
+    expect(typeAlias).not.toHaveProperty('source');
+  });
 });

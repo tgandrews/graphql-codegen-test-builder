@@ -1,19 +1,17 @@
-import { ClassObject, GQLKind, TransformResult } from '../transformer';
+import { ClassObject, GQLKind, TransformResult, TransformTypeAlias } from '../transformer';
 import { buildSelectionCatalogue, SelectionCatalogue } from '../transformer';
 import { renderType } from './typeRenderer';
 import { renderField, renderSetter } from './fieldRenderer';
 import { renderBuild } from './buildRenderer';
 import { determineFieldsToRender } from './helpers';
 
-function renderClassAsType(
-  klass: ClassObject,
+export function renderTypeAlias(
+  typeAlias: TransformTypeAlias,
   parseResult: TransformResult,
   selectionCatalogue: SelectionCatalogue
 ): string {
-  const name = `Mock${klass.name}Type`;
-  const fieldsToRender = determineFieldsToRender(klass, selectionCatalogue);
-  return `type ${name} = {
-    ${fieldsToRender
+  return `type ${typeAlias.name} = {
+    ${typeAlias.fields
       .map(
         (field) =>
           `${field.name}: ${renderType(field, parseResult, undefined, selectionCatalogue)};`
@@ -93,7 +91,15 @@ export function renderClass(
       throw new Error(`Attempting to inline operation: ${klass.name}`);
     }
 
-    return renderClassAsType(klass, parseResult, selectionCatalogue);
+    return renderTypeAlias(
+      {
+        kind: 'type-alias',
+        name: `Mock${klass.name}Type`,
+        fields: determineFieldsToRender(klass, selectionCatalogue),
+      },
+      parseResult,
+      selectionCatalogue
+    );
   }
 
   const className = `Mock${klass.name}${klass.operation ?? ''}Builder`;

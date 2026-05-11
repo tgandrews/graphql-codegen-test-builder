@@ -98,6 +98,44 @@ function transformSchemaType(
   });
 }
 
+function transformInputSchemaType(
+  typeName: string,
+  parsed: ParsedDocument,
+  accumulator: TransformAccumulator,
+  activeTypes: string[] = []
+): void {
+  if (accumulator.getClass(`${typeName}:input`)) {
+    return;
+  }
+  if (activeTypes.includes(typeName)) {
+    return;
+  }
+
+  const schemaType = requireSchemaType(parsed, typeName);
+  if (schemaType.kind !== 'input') {
+    throw new Error(`GraphQL type ${typeName} is not an input object type`);
+  }
+
+  const inputs = schemaType.fields.map<FieldValue>((field) => {
+    if (field.type.kind === 'object') {
+      transformInputSchemaType(field.type.name, parsed, accumulator, [...activeTypes, typeName]);
+    }
+
+    return {
+      name: field.name,
+      type: toGQLType(field.type, true),
+      isList: field.type.isList,
+    };
+  });
+
+  accumulator.addClass({
+    name: schemaType.name,
+    inputs,
+    outputs: [],
+    isInput: true,
+  });
+}
+
 function transformSelectionSet(
   name: string,
   selections: ParsedSelectionSet,
@@ -284,11 +322,7 @@ function transformSelection(
   }
 }
 
-function transformVariable(
-  variable: ParsedVariable,
-  parsed: ParsedDocument,
-  config: Config
-): FieldValue {
+function transformVariable(variable: ParsedVariable, parsed: ParsedDocument): FieldValue {
   if (variable.type.kind !== 'object') {
     throw new Error(`GraphQL type ${variable.type.name} is not an input object type`);
   }
@@ -297,20 +331,6 @@ function transformVariable(
   if (schemaType.kind !== 'input') {
     throw new Error(`GraphQL type ${variable.type.name} is not an input object type`);
   }
-
-  const inputs = schemaType.fields.map<FieldValue>((field) => ({
-    name: field.name,
-    type: toGQLType(field.type, true),
-    isList: field.type.isList,
-  }));
-
-  const accumulator = new TransformAccumulator(config);
-  accumulator.addClass({
-    name: schemaType.name,
-    inputs,
-    outputs: [],
-    isInput: true,
-  });
 
   return {
     name: variable.name,
@@ -337,18 +357,8 @@ function transformOperation(
 
   const variableAccumulator = new TransformAccumulator(config);
   const inputs = operation.variables.map((variable) => {
-    const input = transformVariable(variable, parsed, config);
-    const schemaType = requireSchemaType(parsed, variable.type.name);
-    variableAccumulator.addClass({
-      name: schemaType.name,
-      inputs: schemaType.fields.map<FieldValue>((field) => ({
-        name: field.name,
-        type: toGQLType(field.type, true),
-        isList: field.type.isList,
-      })),
-      outputs: [],
-      isInput: true,
-    });
+    const input = transformVariable(variable, parsed);
+    transformInputSchemaType(variable.type.name, parsed, variableAccumulator);
     return input;
   });
 
@@ -395,6 +405,37 @@ function transformFragmentDefinition(
 }
 
 function addDeclarations(result: TransformResult): TransformResult {
+  const classDeclarations = result.classes
+    .filter((klass) => !klass.userDefined)
+    .map((klass) => {
+      if (klass.shouldInline) {
+        if (klass.operation) {
+          throw new Error(`Attempting to inline operation: ${klass.name}`);
+        }
+
+        return {
+          kind: 'type-alias' as const,
+          name: `Mock${klass.name}Type`,
+          fields: klass.isInput ? klass.inputs : klass.selectedOutputs ?? klass.outputs,
+        };
+      }
+
+      return {
+        kind: 'builder' as const,
+        name: `Mock${klass.name}${klass.operation ?? ''}Builder`,
+        source: klass.operation
+          ? ('operation' as const)
+          : klass.isInput
+          ? ('input' as const)
+          : klass.isSelectionBuilder
+          ? ('selection' as const)
+          : ('object' as const),
+        operationType: klass.operation,
+        inputFields: klass.inputs,
+        outputFields: klass.outputs,
+      };
+    });
+
   return {
     ...result,
     imports: result.classes
@@ -412,25 +453,7 @@ function addDeclarations(result: TransformResult): TransformResult {
         inputFields: [],
         outputFields: fragment.outputs,
       })),
-      ...result.classes
-        .filter((klass) => !klass.userDefined)
-        .map((klass) => ({
-          kind: klass.shouldInline ? ('type-alias' as const) : ('builder' as const),
-          name: klass.shouldInline
-            ? `Mock${klass.name}Type`
-            : `Mock${klass.name}${klass.operation ?? ''}Builder`,
-          source: klass.operation
-            ? ('operation' as const)
-            : klass.isInput
-            ? ('input' as const)
-            : klass.isSelectionBuilder
-            ? ('selection' as const)
-            : ('object' as const),
-          operationType: klass.operation,
-          inputFields: klass.inputs,
-          outputFields: klass.outputs,
-          fields: klass.isInput ? klass.inputs : klass.selectedOutputs ?? klass.outputs,
-        })),
+      ...classDeclarations,
     ],
   };
 }

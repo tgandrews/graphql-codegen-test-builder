@@ -141,6 +141,41 @@ describe('plugin', () => {
         'query: CreateUserMutationDocument',
       ]);
     });
+
+    it('should generate nested input object builders', async () => {
+      const schema = `
+        type Mutation {
+          createUser(input: CreateUserInput!): User!
+        }
+
+        input CreateUserInput {
+          name: String!
+          profile: ProfileInput!
+        }
+
+        input ProfileInput {
+          bio: String
+        }
+
+        type User {
+          name: String!
+        }
+      `;
+      const query = `
+        mutation CreateUser($input: CreateUserInput!) {
+          createUser(input: $input) {
+            name
+          }
+        }
+      `;
+      const result = await runPlugin(query, schema, { inlineFieldCountThreshold: 1 });
+      expectContainsAll(result, [
+        'type MockProfileInputType = {',
+        'class MockCreateUserInputBuilder {',
+        'private profile: MockProfileInputType = {',
+        'forInput(input: MockCreateUserInputBuilder): this {',
+      ]);
+    });
   });
 
   describe('inline small types', () => {

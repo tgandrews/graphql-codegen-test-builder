@@ -1,5 +1,11 @@
 import { Types } from '@graphql-codegen/plugin-helpers';
-import { FragmentDefinitionNode, GraphQLSchema, Kind, OperationDefinitionNode } from 'graphql';
+import {
+  FragmentDefinitionNode,
+  GraphQLSchema,
+  Kind,
+  OperationDefinitionNode,
+  print,
+} from 'graphql';
 import {
   createParseContext,
   FragmentDefinitionMap,
@@ -10,6 +16,21 @@ import { ParsedDocument, ParsedOperation } from './types';
 
 export * from './types';
 
+function addFragmentDefinition(
+  fragments: FragmentDefinitionMap,
+  fragment: FragmentDefinitionNode
+): void {
+  const existing = fragments.get(fragment.name.value);
+  if (!existing) {
+    fragments.set(fragment.name.value, fragment);
+    return;
+  }
+
+  if (print(existing) !== print(fragment)) {
+    throw new Error(`Conflicting fragments with the same name (${fragment.name.value})`);
+  }
+}
+
 const parse = (schema: GraphQLSchema, documents: Types.DocumentFile[]): ParsedDocument => {
   const fragmentDefinitions: FragmentDefinitionMap = new Map<string, FragmentDefinitionNode>();
   for (const { document } of documents) {
@@ -18,7 +39,7 @@ const parse = (schema: GraphQLSchema, documents: Types.DocumentFile[]): ParsedDo
     }
     for (const definition of document.definitions) {
       if (definition.kind === Kind.FRAGMENT_DEFINITION) {
-        fragmentDefinitions.set(definition.name.value, definition);
+        addFragmentDefinition(fragmentDefinitions, definition);
       }
     }
   }

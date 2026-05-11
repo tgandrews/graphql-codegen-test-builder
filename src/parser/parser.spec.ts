@@ -9,6 +9,12 @@ const buildDocuments = (query: string): Types.DocumentFile[] => [
   },
 ];
 
+const buildDocumentFiles = (queries: string[]): Types.DocumentFile[] =>
+  queries.map((query, index) => ({
+    document: parseGraphQL(query),
+    location: `test-${index}.graphql`,
+  }));
+
 describe('parser simplified AST', () => {
   it('parses operations, variables, fragments, selections, and schema types', () => {
     const schema = buildSchema(`
@@ -121,5 +127,34 @@ describe('parser simplified AST', () => {
     `);
 
     expect(() => parse(schema, documents)).toThrow('Inline fragments are not supported yet');
+  });
+
+  it('rejects conflicting duplicate fragment definitions across documents', () => {
+    const schema = buildSchema(`
+      type Query { me: User! }
+      type User { name: String! email: String! }
+    `);
+    const documents = buildDocumentFiles([
+      `
+        query GetUser {
+          me {
+            ...UserSummary
+          }
+        }
+
+        fragment UserSummary on User {
+          name
+        }
+      `,
+      `
+        fragment UserSummary on User {
+          email
+        }
+      `,
+    ]);
+
+    expect(() => parse(schema, documents)).toThrow(
+      'Conflicting fragments with the same name (UserSummary)'
+    );
   });
 });
